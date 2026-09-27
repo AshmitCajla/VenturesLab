@@ -1,0 +1,15 @@
+# One-click backend deploy on Render: New > Blueprint > pick this repo.
+services:
+  - type: web
+    name: ventureslab-api
+    runtime: docker
+    rootDir: backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: MAX_CONCURRENT_JOBS
+        value: "2"

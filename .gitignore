@@ -1,0 +1,20 @@
+# secrets
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+# python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+.pytest_cache/
+.ruff_cache/
+# runtime data
+backend/data/
+temp_uploads/
+temp_images/
+# os / editors
+.DS_Store
+.idea/
+.vscode/

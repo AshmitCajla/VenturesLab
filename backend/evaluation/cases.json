@@ -1,0 +1,12 @@
+[
+  {"id": "clinic-scheduling", "expected": ["BUILD", "PIVOT"],
+   "idea": "WhatsApp-first appointment assistant for independent dental clinics in India. Confirms, reminds and refills cancelled slots automatically. Pilot with 12 clinics cut no-shows from 18% to 7%. Rs 2,000/month per clinic."},
+  {"id": "b2b-carbon-accounting", "expected": ["BUILD", "PIVOT"],
+   "idea": "Carbon-accounting SaaS for Indian mid-size manufacturers that must file BRSR sustainability reports. Pulls electricity and fuel data from invoices automatically. 3 paying design partners."},
+  {"id": "social-app-for-pets", "expected": ["PIVOT", "PASS"],
+   "idea": "A social network where pets have their own profiles and owners post photos. Monetised with ads. No users yet."},
+  {"id": "juicer-hardware", "expected": ["PASS", "PIVOT"],
+   "idea": "A $400 Wi-Fi connected juicer that only works with our proprietary juice packs sold by subscription."},
+  {"id": "llm-contract-review", "expected": ["BUILD", "PIVOT"],
+   "idea": "LLM-powered contract review for in-house legal teams at Indian startups; flags risky clauses against the company's own playbook. Integrates with Google Drive. 40-person waitlist."}
+]

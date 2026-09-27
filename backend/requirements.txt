@@ -1,0 +1,17 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+python-dotenv>=1.0
+httpx>=0.27
+beautifulsoup4>=4.12
+langgraph>=1.0,<2
+langchain-core>=1.0,<2
+langchain-groq>=1.0,<2
+langchain-openai>=1.0,<2
+pymupdf>=1.24
+ddgs>=9.0
+fastembed>=0.5
+numpy>=1.26
+# optional integrations (enabled when their env vars are set)
+qdrant-client>=1.12
+supabase>=2.0
