@@ -24,10 +24,10 @@ class Settings:
     groq_api_key: str = field(default_factory=lambda: _env("GROQ_API_KEY"))
     openrouter_api_key: str = field(default_factory=lambda: _env("OPENROUTER_API_KEY"))
     llm_provider: str = field(default_factory=lambda: _env("LLM_PROVIDER", "groq"))
-    fast_model: str = field(default_factory=lambda: _env("FAST_MODEL", "llama-3.3-70b-versatile"))
-    reasoning_model: str = field(default_factory=lambda: _env("REASONING_MODEL", "llama-3.3-70b-versatile"))
+    fast_model: str = field(default_factory=lambda: _env("FAST_MODEL", "openai/gpt-oss-120b"))
+    reasoning_model: str = field(default_factory=lambda: _env("REASONING_MODEL", "openai/gpt-oss-120b"))
     openrouter_model: str = field(
-        default_factory=lambda: _env("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct")
+        default_factory=lambda: _env("OPENROUTER_MODEL", "openai/gpt-oss-120b")
     )
     llm_timeout_s: float = field(default_factory=lambda: float(_env("LLM_TIMEOUT_S", "60")))
     llm_max_retries: int = field(default_factory=lambda: int(_env("LLM_MAX_RETRIES", "2")))

@@ -1,0 +1,75 @@
+\input{preamble}
+\renewcommand{\contact}{%
+\begin{center}
+{\Huge\textbf{Ashmit Cajla}}\\[3pt]
+\href{mailto:work.ashmitcajla@gmail.com}{work.ashmitcajla@gmail.com} $\cdot$ +91 98767 04491 $\cdot$
+\href{https://github.com/AshmitCajla}{github.com/AshmitCajla} $\cdot$
+\href{https://www.linkedin.com/in/ashmitcajla/}{linkedin.com/in/ashmitcajla} $\cdot$ Patiala, India\\[2pt]
+\small\textbf{Data Engineering Intern candidate $\cdot$ available 6 months, Jan--Jul 2027}
+\end{center}\vspace{-6pt}}
+\begin{document}
+\contact
+
+\header{Education}
+\textbf{Thapar Institute of Engineering and Technology} \hfill Patiala, India\\
+B.Tech., Electronics and Computer Engineering; CGPA 7.62/10 \hfill Aug 2023 -- Jul 2027\\[2pt]
+\textbf{Indian Institute of Technology Madras} (online degree, concurrent) \hfill Chennai, India\\
+B.S., Data Science and Applications \hfill Aug 2023 -- Aug 2027\\
+\textit{Coursework:} Database Management Systems, Data Structures \& Algorithms, Operating Systems, Computer Networks, ML
+
+\header{Experience}
+\role{Data Scientist \& Portal Developer}{Apr 2025 -- Jan 2026}{Tel Aviv University (agri-IoT research data platform)}{Remote}
+\begin{itemize}
+  \item Built and operated the ingestion and query pipeline (\textbf{Python}, \textbf{FastAPI}, \textbf{GCP} + self-managed nodes) for \textbf{2M+ sensor events/day} from 1,500+ sensors across 300 farms, storing terabytes of time-series data.
+  \item Added a \textbf{data-quality layer} on incoming records: anomaly and duplicate detection, structured failure logging and automatic retries, raising platform availability to \textbf{99.4\%} and cutting infrastructure cost by \textbf{30\%}.
+  \item Served validated data to downstream monitoring tools through internal REST APIs; investigated unexpected patterns flagged by the checks with domain researchers and refined the detection rules.
+  \item Shipped through Git pull requests and code review in a 5-person team of engineers and researchers.
+\end{itemize}
+
+\role{Student Researcher, Samsung PRISM '24}{Jun 2024 -- Mar 2025}{Samsung R\&D Institute India}{Remote}
+\begin{itemize}
+  \item Built a generative-AI detector for visible and invisible image watermarks (\textbf{95\%+ precision}).
+\end{itemize}
+
+\role{UAV Engineer, Autonomous Systems}{Jun 2025 -- Jul 2025}{Indian Army, 10 Corps Zonal Workshop}{Suratgarh, India}
+\begin{itemize}
+  \item Built and evaluated autonomous decision-making modules for UAV systems with \textbf{sub-5-second} response times.
+\end{itemize}
+
+\header{Projects}
+\proj{VenturesLab -- 12-agent LLM analysis platform}{\href{https://github.com/AshmitCajla/VenturesLab}{github.com/AshmitCajla/VenturesLab}}{2026}
+\begin{itemize}
+  \item FastAPI service orchestrating 12 LLM agents (LangGraph) with \textbf{RAG} over uploaded PDFs: chunking, bge-small embeddings, similarity search in \textbf{Qdrant} or in-memory, and prompts grounded in the retrieved passages.
+  \item Wrote 20+ automated output checks (range, ordering and consistency rules) that trigger a corrective retry, plus failure isolation per step; 14 tests and Docker builds run in GitHub Actions CI. Built with an AI coding assistant; every change reviewed and tested.
+  \item Long analyses run as background jobs with per-step progress polling, so multi-minute runs survive request timeouts; LLM provider fallback and SSRF-safe URL fetching.
+\end{itemize}
+
+\proj{ResearchOS -- literature knowledge graph}{\href{https://github.com/AshmitCajla/research_OS}{github.com/AshmitCajla/research\_OS}}{2026}
+\begin{itemize}
+  \item Pulls up to 50 papers from two APIs, deduplicates and ranks them by embedding similarity, extracts reported results from PDFs into structured records, and canonicalises names into a model$\times$dataset graph.
+  \item Exponential-backoff retries on rate limits, arXiv fallback when throttled, parallel full-text reads.
+\end{itemize}
+
+\proj{AI-Driven Next-Gen Firewall}{}{Dec 2025}
+\begin{itemize}
+  \item Real-time streaming pipeline: Suricata signature inspection $\rightarrow$ \textbf{Kafka} event stream $\rightarrow$ LightGBM flow classifier $\rightarrow$ SOAR-style engine that automatically blocks malicious traffic. Winning team, Smart India Hackathon '25.
+  \item 99.16\% accuracy, 99.10\% recall on held-out CICIDS2017; integration-tested with attack simulations.
+\end{itemize}
+
+\header{Skills}
+\textbf{Languages:} Python, SQL, Java, C++, JavaScript\\
+\textbf{Data:} data pipelines, data-quality checks, time-series data, Kafka, REST APIs, Spark (coursework)\\
+\textbf{LLM / AI:} prompting, RAG, embeddings, vector search (Qdrant), LLM output evaluation; daily use of AI coding assistants\\
+\textbf{Tools:} Git, Linux, Docker, GCP, AWS, GitHub Actions, FastAPI
+
+\header{Publications \& IP}
+\begin{itemize}
+  \item \textbf{Securing IoT Devices using a Multi-Layer IDS Framework.} IEEE IC3 2026, accepted and presented. Co-author.
+  \item \textbf{Defending Large Audio-Language Models against Audio-Based Prompt Injections via Defensive Fine-Tuning.} IEEE IC3 2026. Co-author.
+  \item \textbf{Act-Reco: Real-time activity recognition framework based on deep learning.} \textit{Evolving Systems} (Springer), 2026. \href{https://doi.org/10.1007/s12530-025-09779-6}{doi.org/10.1007/s12530-025-09779-6}.
+  \item \textbf{UAV Detection and Neutralisation Device.} Registered Design No.\ 486614-001 (Jan 2026).
+\end{itemize}
+
+\header{Leadership \& Awards}
+Winning team, SIH '24 (3D commando tracker) $\cdot$ President, GDG Thapar $\cdot$ President, Student Alumni Interaction Cell
+\end{document}
