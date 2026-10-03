@@ -13,8 +13,10 @@ what it returns). ``make_node`` turns a spec into a LangGraph node that:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -79,6 +81,29 @@ async def _gather_context(spec: AgentSpec, state: dict) -> AgentContext:
     return ctx
 
 
+RETRY_DELAY_S = 2.0
+
+
+async def _invoke_with_retry(llm, prompt: str, name: str, attempts: int = 4):
+    """Retry transient failures (malformed output, rate limits, timeouts) with backoff.
+
+    Groq's free tier allows ~8k tokens per minute per model, so a 12-agent run can hit
+    429s; Groq says how long to wait ("try again in 7.5s") and we honour that.
+    """
+    for i in range(attempts):
+        try:
+            return await llm.ainvoke(prompt)
+        except Exception as exc:
+            if i == attempts - 1:
+                raise
+            msg = str(exc)
+            m = re.search(r"try again in (?:(\d+)m)?([\d.]+)s", msg)
+            wait = (int(m.group(1) or 0) * 60 + float(m.group(2)) + 1) if m else RETRY_DELAY_S * (i + 1)
+            wait = min(wait, 65) if RETRY_DELAY_S else 0
+            logger.warning("%s: model call failed (%s); retrying in %.0fs", name, msg[:160], wait)
+            await asyncio.sleep(wait)
+
+
 def make_node(spec: AgentSpec) -> Callable[[dict], Awaitable[dict]]:
     async def node(state: dict) -> dict:
         started = time.perf_counter()
@@ -98,7 +123,7 @@ def make_node(spec: AgentSpec) -> Callable[[dict], Awaitable[dict]]:
             checks = []
             for attempt in range(1 + spec.max_self_corrections):
                 trace["attempts"] = attempt + 1
-                parsed = await llm.ainvoke(prompt)
+                parsed = await _invoke_with_retry(llm, prompt, spec.name)
                 if not isinstance(parsed, spec.schema):  # some providers return dicts
                     parsed = spec.schema.model_validate(parsed)
                 update = (spec.postprocess(parsed, state) if spec.postprocess

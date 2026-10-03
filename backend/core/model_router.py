@@ -85,7 +85,21 @@ def get_llms(role: Role = "reasoning") -> list:
     return [build(p) for p in providers]  # primary first, then fallbacks
 
 
+def _structured(model, schema):
+    """Native structured outputs (response_format=json_schema) instead of forced tool calls.
+
+    Reasoning models such as gpt-oss sometimes answer in prose when a tool call is
+    forced, which Groq rejects with 400 "tool_use_failed". Groq's strict mode makes the
+    output follow the schema exactly; OpenRouter models get the non-strict variant.
+    """
+    from langchain_groq import ChatGroq
+
+    if isinstance(model, ChatGroq):
+        return model.with_structured_output(schema, method="json_schema", strict=True)
+    return model.with_structured_output(schema, method="json_schema")
+
+
 def get_structured_llm(role: Role, schema):
     """A runnable that returns ``schema`` instances, with provider fallback."""
-    primary, *fallbacks = [m.with_structured_output(schema) for m in get_llms(role)]
+    primary, *fallbacks = [_structured(m, schema) for m in get_llms(role)]
     return primary.with_fallbacks(fallbacks) if fallbacks else primary

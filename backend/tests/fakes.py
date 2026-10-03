@@ -73,5 +73,5 @@ class FakeLLM:
         self.scripted = {k: list(v) for k, v in (scripted or {}).items()}
         self.prompts: list[tuple[str, str]] = []
 
-    def with_structured_output(self, schema):
+    def with_structured_output(self, schema, **kwargs):
         return FakeStructured(self, schema)

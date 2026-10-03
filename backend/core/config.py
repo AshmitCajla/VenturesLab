@@ -24,13 +24,13 @@ class Settings:
     groq_api_key: str = field(default_factory=lambda: _env("GROQ_API_KEY"))
     openrouter_api_key: str = field(default_factory=lambda: _env("OPENROUTER_API_KEY"))
     llm_provider: str = field(default_factory=lambda: _env("LLM_PROVIDER", "groq"))
-    fast_model: str = field(default_factory=lambda: _env("FAST_MODEL", "openai/gpt-oss-120b"))
+    fast_model: str = field(default_factory=lambda: _env("FAST_MODEL", "openai/gpt-oss-20b"))
     reasoning_model: str = field(default_factory=lambda: _env("REASONING_MODEL", "openai/gpt-oss-120b"))
     openrouter_model: str = field(
         default_factory=lambda: _env("OPENROUTER_MODEL", "nvidia/nemotron-3-super-120b-a12b:free")
     )
     llm_timeout_s: float = field(default_factory=lambda: float(_env("LLM_TIMEOUT_S", "60")))
-    llm_max_retries: int = field(default_factory=lambda: int(_env("LLM_MAX_RETRIES", "2")))
+    llm_max_retries: int = field(default_factory=lambda: int(_env("LLM_MAX_RETRIES", "4")))
 
     # Retrieval
     embeddings_backend: str = field(default_factory=lambda: _env("EMBEDDINGS", "fastembed"))

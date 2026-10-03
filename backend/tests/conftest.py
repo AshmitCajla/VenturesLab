@@ -9,8 +9,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest  # noqa: E402
 
+import agents.base  # noqa: E402
 from core import model_router  # noqa: E402
 from tests.fakes import FakeLLM  # noqa: E402
+
+agents.base.RETRY_DELAY_S = 0  # no real waiting in tests
 
 
 @pytest.fixture

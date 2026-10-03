@@ -54,7 +54,7 @@ async def test_self_correction_retries_bad_market_sizing():
 
 
 async def test_agent_failure_is_isolated():
-    llm = FakeLLM({S.PESTLEAnalysis: [RuntimeError("provider down")]})
+    llm = FakeLLM({S.PESTLEAnalysis: [RuntimeError("provider down")] * 4})
     model_router.set_llm_factory(lambda role: llm)
     try:
         out = await run()
@@ -65,7 +65,7 @@ async def test_agent_failure_is_isolated():
 
 
 async def test_profile_failure_skips_dependents():
-    llm = FakeLLM({S.VentureProfile: [RuntimeError("bad key")]})
+    llm = FakeLLM({S.VentureProfile: [RuntimeError("bad key")] * 4})
     model_router.set_llm_factory(lambda role: llm)
     try:
         out = await run()
@@ -109,3 +109,14 @@ def test_checks_catch_known_failure_modes():
 def test_chunking_overlaps():
     chunks = chunk_text(" ".join(str(i) for i in range(400)), max_words=180, overlap=40)
     assert len(chunks) == 3 and chunks[1].split()[0] == "140"
+
+
+async def test_transient_model_error_is_retried():
+    llm = FakeLLM({S.VentureProfile: [RuntimeError("tool_use_failed")]})
+    model_router.set_llm_factory(lambda role: llm)
+    try:
+        out = await run()
+    finally:
+        model_router.set_llm_factory(None)
+    assert out["venture_profile"]["name"] == "ClinicFlow"
+    assert out["recommendation"] == "BUILD"
