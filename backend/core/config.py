@@ -27,7 +27,7 @@ class Settings:
     fast_model: str = field(default_factory=lambda: _env("FAST_MODEL", "openai/gpt-oss-120b"))
     reasoning_model: str = field(default_factory=lambda: _env("REASONING_MODEL", "openai/gpt-oss-120b"))
     openrouter_model: str = field(
-        default_factory=lambda: _env("OPENROUTER_MODEL", "openai/gpt-oss-120b")
+        default_factory=lambda: _env("OPENROUTER_MODEL", "nvidia/nemotron-3-super-120b-a12b:free")
     )
     llm_timeout_s: float = field(default_factory=lambda: float(_env("LLM_TIMEOUT_S", "60")))
     llm_max_retries: int = field(default_factory=lambda: int(_env("LLM_MAX_RETRIES", "2")))
