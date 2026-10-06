@@ -6,7 +6,7 @@ competitors, runs SWOT, PESTLE and Porter's Five Forces, sizes the market bottom
 venture and, if the score is high enough, drafts an MVP roadmap, go-to-market plan and financial model.
 
 [![CI](https://github.com/AshmitCajla/VenturesLab/actions/workflows/ci.yml/badge.svg)](https://github.com/AshmitCajla/VenturesLab/actions/workflows/ci.yml)
-**Live demo:** _add your Streamlit URL here after deploying_
+**Live demo:** [Try here](https://ventureslab-ashmit-cajla.streamlit.app/)
 
 ## How it works
 
