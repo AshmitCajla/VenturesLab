@@ -33,6 +33,13 @@ wrote it says so** (a test, a harness, a live run, or a tool such as `promtool`)
 | Live end-to-end run | The verification agent searched with the whole customer description and got no results, so the $50B TAM went "unverifiable". It now asks the extractor for a short query; the next live run flagged it as a conflict against four market reports ($2.8-4.4B). |
 | Live end-to-end run | "No results" from search was treated as an outage, which would page on-call for nothing. |
 | Live end-to-end run | The deck-version diff keyed claims by the model's wording, so re-running the same deck showed every claim as removed and re-added. Now keyed by kind and slide, and identical decks are labelled so model variance is not mistaken for change. |
+| Live chaos run | The default free fallback model returned 404 for days; nobody would have noticed until Groq failed. Fallbacks are now lists, dead targets are dropped, and a canary probes every model. |
+| Live chaos run | Retry waits took the *shortest* hint across providers, so a dead fallback's 404 made the client hammer a rate-limited Groq. Permanent errors no longer influence the wait. |
+| Live chaos run | Parallel agents tripped Groq's 8k tokens/minute limit; a per-model token pacer now queues calls. |
+| Live chaos run | Timeouts absorbed by retries left no trace, so the ops agent diagnosed "unknown". Recovered errors are now recorded and counted. |
+| Live chaos run | The ops agent's own diagnosis depended on the provider that was failing (it hit Groq's daily limit mid-incident). It now falls back to a rule-based diagnosis. |
+| Live chaos run | The harness's alert text named the experiment, leaking the answer to the ops agent; those results were discarded. |
+| Live run, PDF export | Models write non-breaking hyphens; the PDF font rendered "$2.8-4.4B" as "$2.8I4.4B". |
 | Test isolation review | `config.py` loads `backend/.env`; tests would have picked up a developer's real API keys and Slack tokens. Tests now blank them. |
 
 ## What was deliberately not trusted

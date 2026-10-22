@@ -7,7 +7,10 @@ harness that exercises it.
 |---|---|---|---|
 | Primary LLM provider down | Calls fall back to the next provider; the trace records which model answered | `ventureslab_llm_calls_total{outcome="error"}`, `LLMErrorRateHigh` | `evaluation/chaos.py` (primary_provider_down), `test_chaos_provider_down_degrades_instead_of_failing` |
 | All providers down / timeouts | Agent fails, dependents skipped, report delivered with sections unavailable | `ReportCompletenessBudgetBurn`; error signature `llm_timeout` | chaos `llm_timeouts`, `test_agent_failure_is_isolated` |
-| Rate limits (Groq TPM/TPD) | Waits as long as Groq asks (capped at 65s), then falls back | `retrying in` log lines; signature `rate_limit` | `test_transient_model_error_is_retried`, live red-team run |
+| Rate limits (Groq TPM/TPD) | Calls are paced under each model's tokens/minute budget; on 429 waits as long as Groq asks (capped at 65s) and falls back | `retrying in` log lines; signature `rate_limit`; `LLMErrorRateHigh` | `test_token_pacer_waits_instead_of_exceeding_the_limit`, live chaos |
+| A fallback model is dead (404, retired) | Dropped for the rest of the call instead of retried; next fallback used | canary `ventureslab_llm_target_up`, `FallbackModelDown` | `test_permanently_broken_target_is_dropped_not_retried`, `test_canary_reports_each_target` |
+| Errors absorbed by retries/fallbacks | Report is complete, but each agent's trace lists the recovered errors | error signatures; `LLMErrorRateHigh` | `test_errors_absorbed_by_retries_stay_visible_to_ops` |
+| Ops agent's model is down during an incident | Rule-based diagnosis from error signatures, low confidence | diagnosis summary says "model unavailable" | `test_diagnosis_falls_back_to_rules_when_the_model_is_down` |
 | Model returns prose / bad JSON | Native JSON-schema output; retry; fallback | signature `model_output_format` | `test_transient_model_error_is_retried` |
 | Output well-formed but wrong (SOM > SAM, self as competitor…) | 20+ checks; one self-correction retry with the failure explained | `ventureslab_quality_checks_total`, Quality tab | `test_self_correction_retries_bad_market_sizing` |
 | Web search down | Agents use model knowledge, say so; confidence drops to Low | `WebSearchDegraded`; trace warnings | chaos `web_search_down` |

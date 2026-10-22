@@ -98,10 +98,46 @@ def signals(evidence: dict) -> list[str]:
     return [f"{s['count']}x {s['category']}: {s['signature'][:120]}" for s in sigs[:5]]
 
 
+NEXT_STEPS = {
+    "rate_limit": ["Check provider quotas (TPM/TPD) in recent_logs", "Lower MAX_CONCURRENT_JOBS or switch LLM_PROVIDER"],
+    "llm_timeout": ["Check provider latency in the Ops dashboard", "Lower LLM_TIMEOUT_S so fallbacks start sooner"],
+    "llm_provider_outage": ["Check the provider status page and the model_health canary",
+                            "Make the fallback primary (LLM_PROVIDER) until it recovers"],
+    "web_search": ["Check egress/DNS from the API host", "Set WEB_SEARCH=0 temporarily"],
+    "deck_parsing": ["Find the affected decks in recent_runs", "Check for a PyMuPDF regression"],
+    "model_output_format": ["Check whether FAST_MODEL/REASONING_MODEL changed", "Roll back the model change"],
+}
+
+
+def rule_based_diagnosis(alert: dict, evidence: dict, reason: str) -> Diagnosis:
+    """Used when the reasoning model is unavailable, which during an LLM incident is likely:
+    incident tooling must not depend on the thing that is down."""
+    sigs = evidence.get("error_signatures") if isinstance(evidence.get("error_signatures"), list) else []
+    top = sigs[0] if sigs else None
+    category = top["category"] if top else "unknown"
+    return Diagnosis(
+        summary=f"{alert.get('labels', {}).get('alertname', 'Alert')} fired; automatic diagnosis from error "
+                f"signatures only (model unavailable: {reason[:120]}).",
+        likely_cause=(f"{top['count']}x {top['signature'][:160]} (agents: {', '.join(top['agents'])})"
+                      if top else "no error signatures in the last hour"),
+        category=category,
+        evidence=signals(evidence) or ["no errors recorded in the last hour"],
+        confidence="Low",
+        next_steps=NEXT_STEPS.get(category, ["Start with the run-failures runbook"]))
+
+
 async def diagnose(alert: dict, evidence: dict | None = None) -> tuple[Diagnosis, dict]:
     with span("ops.diagnose", alert=alert.get("labels", {}).get("alertname")):
         evidence = evidence or await gather_evidence()
-        prompt = f"""You are the on-call SRE for VenturesLab, a multi-agent LLM service that analyses
+        try:
+            return await _model_diagnosis(alert, evidence), evidence
+        except Exception as exc:
+            logger.warning("model diagnosis failed (%s); falling back to rules", str(exc)[:160])
+            return rule_based_diagnosis(alert, evidence, f"{type(exc).__name__}: {exc}"), evidence
+
+
+async def _model_diagnosis(alert: dict, evidence: dict) -> Diagnosis:
+    prompt = f"""You are the on-call SRE for VenturesLab, a multi-agent LLM service that analyses
 pitch decks (Groq and OpenRouter models, web search, PDF parsing). An alert fired. Diagnose the most
 likely cause from the evidence only. Cite numbers from the evidence. If evidence is thin, say so and
 use confidence Low.
@@ -112,8 +148,8 @@ Pre-computed signals (error signature -> category hint): {json.dumps(signals(evi
 
 Evidence from the ops tools:
 {json.dumps(evidence, default=str)[:14000]}"""
-        diag, _ = await call_structured("reasoning", Diagnosis, prompt, "Ops diagnosis", attempts=3)
-        return diag, evidence
+    diag, _ = await call_structured("reasoning", Diagnosis, prompt, "Ops diagnosis", attempts=3)
+    return diag
 
 
 async def ask_ops(question: str) -> OpsAnswer:

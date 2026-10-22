@@ -21,6 +21,17 @@ def usd(x) -> str:
     return f"${x:,.0f}"
 
 
+# The built-in PDF fonts only cover Latin-1; models write typographic characters (non-breaking
+# hyphens, narrow spaces, curly quotes) that would otherwise render as wrong glyphs.
+_PLAIN = str.maketrans({"\u2010": "-", "\u2011": "-", "\u2012": "-", "\u2013": "-", "\u2014": "-",
+                        "\u2212": "-", "\u00a0": " ", "\u202f": " ", "\u2009": " ", "\u2018": "'",
+                        "\u2019": "'", "\u201c": '"', "\u201d": '"', "\u2026": "...", "\u2248": "~"})
+
+
+def plain(text) -> str:
+    return str(text).translate(_PLAIN).encode("latin-1", "replace").decode("latin-1")
+
+
 def ok(section) -> bool:
     return isinstance(section, dict) and section and "error" not in section and "skipped" not in section
 
@@ -33,7 +44,7 @@ def build_pdf(data: dict) -> bytes:
     h2 = ParagraphStyle("h2", parent=ss["Heading2"], fontSize=12, textColor=colors.HexColor("#1D4ED8"),
                         spaceBefore=12, spaceAfter=4)
     body = ParagraphStyle("b", parent=ss["Normal"], fontSize=9, leading=13)
-    P = lambda t, s=body: Paragraph(escape(str(t)), s)  # noqa: E731
+    P = lambda t, s=body: Paragraph(escape(plain(t)), s)  # noqa: E731
     story = []
 
     profile = data.get("venture_profile", {})
@@ -48,7 +59,7 @@ def build_pdf(data: dict) -> bytes:
     if claims:
         story.append(P("Deck claims checked", h2))
         rows = [["Claim", "Slide", "Citation", "Check", "Independent estimate"]] + [
-            [P(c["claim"]), str(c["slide"]), c["citation"].replace("_", " "), c["status"],
+            [P(c["claim"]), str(c["slide"]), c["citation"].replace("_", " "), plain(c["status"]),
              P(c.get("external_estimate") or "")] for c in claims]
         t = Table(rows, colWidths=[200, 35, 75, 70, 135])
         t.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
