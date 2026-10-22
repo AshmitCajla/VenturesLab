@@ -5,6 +5,7 @@ wait the provider asks for, and records for each call: an OTel span, Prometheus
 metrics, token usage and estimated cost (added to the run's budget). Chaos
 faults are injected here too, so fallback and degradation can be tested.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -18,7 +19,7 @@ from core.telemetry import LLM_CALLS, LLM_COST, LLM_LATENCY, LLM_TOKENS, span
 
 logger = logging.getLogger("llm")
 
-RETRY_DELAY_S = 2.0   # tests set this to 0
+RETRY_DELAY_S = 2.0  # tests set this to 0
 OUTPUT_TOKENS_EST = 1500  # gpt-oss output includes reasoning tokens, which count against TPM
 
 
@@ -64,6 +65,8 @@ def pacer_for(target: Target) -> TokenPacer | None:
 
 def estimate_tokens(prompt) -> int:
     return len(str(prompt)) // 4 + OUTPUT_TOKENS_EST
+
+
 MAX_WAIT_S = 65.0
 _WAIT_RE = re.compile(r"try again in (?:(\d+)h)?(?:(\d+)m)?([\d.]+)s")
 
@@ -76,8 +79,11 @@ def _wait_hint(exc: Exception, attempt: int) -> float:
     return RETRY_DELAY_S * (attempt + 1)
 
 
-_PERMANENT = re.compile(r"NotFound|\b404\b|\b401\b|\b403\b|PermissionDenied|Authentication|"
-                        r"only available on|model_not_found|does not exist|decommissioned", re.IGNORECASE)
+_PERMANENT = re.compile(
+    r"NotFound|\b404\b|\b401\b|\b403\b|PermissionDenied|Authentication|"
+    r"only available on|model_not_found|does not exist|decommissioned",
+    re.IGNORECASE,
+)
 
 
 def is_permanent(exc: Exception) -> bool:
@@ -101,17 +107,20 @@ async def call_targets(chain: list[Target], schema, prompt, name: str, attempts:
     live = list(chain)
     last: Exception | None = None
     errors: dict[int, Exception] = {}  # by chain position; the primary's error is the useful one
-    recovered: list[Exception] = []      # reported even on success: absorbed faults must stay visible
+    recovered: list[Exception] = []  # reported even on success: absorbed faults must stay visible
     for attempt in range(attempts):
         waits = []
         for target in list(live):
             started = time.perf_counter()
-            with span("llm.call", **{"llm.provider": target.provider, "llm.model": target.model,
-                                     "agent": name, "attempt": attempt + 1}) as s:
+            with span(
+                "llm.call",
+                **{"llm.provider": target.provider, "llm.model": target.model, "agent": name, "attempt": attempt + 1},
+            ) as s:
                 try:
-                    if pacer := pacer_for(target):
-                        if waited := await pacer.acquire(estimate_tokens(prompt)):
-                            s.set_attribute("llm.paced_s", round(waited, 1))
+                    pacer = pacer_for(target)
+                    waited = await pacer.acquire(estimate_tokens(prompt)) if pacer else 0.0
+                    if waited:
+                        s.set_attribute("llm.paced_s", round(waited, 1))
                     await chaos.before_llm_call(target.provider, primary=target is chain[0])
                     parsed, usage = unpack(await target.runnable.ainvoke(prompt), schema, target)
                 except Exception as exc:

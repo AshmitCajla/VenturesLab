@@ -8,6 +8,7 @@ Every agent asks the store for the deck passages relevant to *its* question
 (e.g. the financial agent asks about revenue, burn and pricing), so a
 50-slide deck never has to be stuffed into a single prompt.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -72,9 +73,7 @@ class QdrantStore:
                 self.COLLECTION,
                 vectors_config=VectorParams(size=get_embedder().dim, distance=Distance.COSINE),
             )
-            await self._client.create_payload_index(
-                self.COLLECTION, "session_id", PayloadSchemaType.KEYWORD
-            )
+            await self._client.create_payload_index(self.COLLECTION, "session_id", PayloadSchemaType.KEYWORD)
         self._ready = True
 
     async def index(self, session_id: str, chunks: list[Chunk]) -> int:
@@ -85,8 +84,9 @@ class QdrantStore:
         await self._ensure()
         vecs = await asyncio.to_thread(get_embedder().embed, [c.text for c in chunks])
         points = [
-            PointStruct(id=str(uuid.uuid4()), vector=v,
-                        payload={"session_id": session_id, "text": c.text, "page": c.page})
+            PointStruct(
+                id=str(uuid.uuid4()), vector=v, payload={"session_id": session_id, "text": c.text, "page": c.page}
+            )
             for c, v in zip(chunks, vecs, strict=True)
         ]
         await self._client.upsert(self.COLLECTION, points=points)
@@ -98,7 +98,9 @@ class QdrantStore:
         await self._ensure()
         q = (await asyncio.to_thread(get_embedder().embed, [query]))[0]
         res = await self._client.query_points(
-            self.COLLECTION, query=q, limit=k,
+            self.COLLECTION,
+            query=q,
+            limit=k,
             query_filter=Filter(must=[FieldCondition(key="session_id", match=MatchValue(value=session_id))]),
         )
         return [Chunk(text=p.payload["text"], page=p.payload.get("page"), score=p.score) for p in res.points]
@@ -106,8 +108,12 @@ class QdrantStore:
     async def drop(self, session_id: str) -> None:
         from qdrant_client.models import FieldCondition, Filter, FilterSelector, MatchValue
 
-        await self._client.delete(self.COLLECTION, points_selector=FilterSelector(
-            filter=Filter(must=[FieldCondition(key="session_id", match=MatchValue(value=session_id))])))
+        await self._client.delete(
+            self.COLLECTION,
+            points_selector=FilterSelector(
+                filter=Filter(must=[FieldCondition(key="session_id", match=MatchValue(value=session_id))])
+            ),
+        )
 
 
 @lru_cache

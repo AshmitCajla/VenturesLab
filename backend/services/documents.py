@@ -1,4 +1,5 @@
 """Turning user inputs (PDF decks, websites) into clean text chunks."""
+
 from __future__ import annotations
 
 import asyncio
@@ -24,9 +25,9 @@ class Chunk:
 
 # ---------------------------------------------------------------- PDF decks
 def extract_pdf_pages(pdf_bytes: bytes) -> list[str]:
-    import fitz  # PyMuPDF
+    import pymupdf  # PyMuPDF
 
-    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
         return [page.get_text("text") for page in doc]
 
 
@@ -35,8 +36,7 @@ def chunk_text(text: str, max_words: int = 180, overlap: int = 40) -> list[str]:
     if not words:
         return []
     step = max(1, max_words - overlap)
-    return [" ".join(words[i : i + max_words]) for i in range(0, len(words), step)
-            if words[i : i + max_words]]
+    return [" ".join(words[i : i + max_words]) for i in range(0, len(words), step) if words[i : i + max_words]]
 
 
 def chunk_pages(pages: list[str]) -> list[Chunk]:
@@ -80,8 +80,9 @@ async def scrape_url(url: str) -> str:
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
     await asyncio.to_thread(assert_public_url, url)
-    async with httpx.AsyncClient(follow_redirects=True, timeout=10.0,
-                                 headers={"User-Agent": "VenturesLab/2.0"}) as client:
+    async with httpx.AsyncClient(
+        follow_redirects=True, timeout=10.0, headers={"User-Agent": "VenturesLab/2.0"}
+    ) as client:
         res = await client.get(url)
         res.raise_for_status()
     return html_to_text(res.text)[:MAX_URL_CHARS]

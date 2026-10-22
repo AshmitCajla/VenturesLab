@@ -1,4 +1,7 @@
 -r requirements.txt
-pytest>=8
-pytest-asyncio>=0.24
-ruff>=0.6
+# pinned so lint and tests behave the same locally and in CI
+pytest==9.1.1
+pytest-asyncio==1.4.0
+pytest-cov==7.0.0
+ruff==0.17.1
+pre-commit==4.7.0

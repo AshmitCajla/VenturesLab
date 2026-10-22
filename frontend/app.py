@@ -5,6 +5,7 @@ agent finishes, then shows the report with its sources, confidence, checked
 claims and anything that was removed from a manipulated deck. ``?run=<id>``
 opens a stored run directly (the Slack card's "Full report" button links here).
 """
+
 from __future__ import annotations
 
 import os
@@ -49,7 +50,9 @@ def describe_changes(ch: dict) -> str:
     for k, v in (ch.get("criteria") or {}).items():
         parts.append(f"{k.replace('_', ' ')} {v['from']} → {v['to']}")
     if "market_size" in ch and ch["market_size"].get("from"):
-        parts.append(f"TAM {usd(ch['market_size']['from'].get('tam_usd'))} → {usd(ch['market_size']['to'].get('tam_usd'))}")
+        parts.append(
+            f"TAM {usd(ch['market_size']['from'].get('tam_usd'))} → {usd(ch['market_size']['to'].get('tam_usd'))}"
+        )
     if "claims" in ch:
         c = ch["claims"]
         parts.append(f"claims: {len(c['added'])} new, {len(c['removed'])} dropped, {len(c['changed'])} changed")
@@ -71,8 +74,10 @@ def agent_list():
 def confidence_badge(data: dict, key: str) -> None:
     c = (data.get("confidence") or {}).get(key)
     if c:
-        st.caption(f"{LEVEL.get(c['level'], '')} Confidence: **{c['level']}**"
-                   + (f" · {md('; '.join(c['reasons']))}" if c.get("reasons") else ""))
+        st.caption(
+            f"{LEVEL.get(c['level'], '')} Confidence: **{c['level']}**"
+            + (f" · {md('; '.join(c['reasons']))}" if c.get("reasons") else "")
+        )
 
 
 def sources(data: dict, key: str) -> None:
@@ -82,9 +87,11 @@ def sources(data: dict, key: str) -> None:
         return
     with st.expander(f"Sources ({len(deck)} slide passage(s), {len(web)} web)"):
         for d in deck:
-            st.markdown(f"- **Slide {d.get('slide')}**"
-                        + (f" (relevance {d['score']:.2f})" if d.get("score") is not None else "")
-                        + f": {md(d.get('excerpt', ''))}…")
+            st.markdown(
+                f"- **Slide {d.get('slide')}**"
+                + (f" (relevance {d['score']:.2f})" if d.get("score") is not None else "")
+                + f": {md(d.get('excerpt', ''))}…"
+            )
         for w in web:
             st.markdown(f"- [{md(w.get('title') or w.get('url'))}]({w.get('url')})")
 
@@ -93,8 +100,9 @@ def sources(data: dict, key: str) -> None:
 with st.sidebar:
     st.title("📈 VenturesLab")
     st.caption("AI analysts review a startup the way a VC fund would, and show their sources.")
-    idea = st.text_area("Startup description", height=120,
-                        placeholder="What problem, for whom, how you make money, any traction...")
+    idea = st.text_area(
+        "Startup description", height=120, placeholder="What problem, for whom, how you make money, any traction..."
+    )
     url = st.text_input("Website (optional)", placeholder="https://example.com")
     deck = st.file_uploader("Pitch deck PDF (optional)", type=["pdf"])
     go = st.button("Analyse venture", type="primary", use_container_width=True)
@@ -121,8 +129,9 @@ def run_analysis():
     try:
         r = api("POST", "/analyze", data={"idea": idea, "url": url}, files=files, timeout=60)
     except requests.RequestException as exc:
-        st.error(f"Cannot reach the backend ({exc}). If it is on a free host it may be waking up; "
-                 "try again in 30 seconds.")
+        st.error(
+            f"Cannot reach the backend ({exc}). If it is on a free host it may be waking up; try again in 30 seconds."
+        )
         return
     if r.status_code != 202:
         st.error(f"Backend rejected the request: {r.status_code} {r.text[:300]}")
@@ -139,12 +148,15 @@ def run_analysis():
                 continue
             done = [p for p in job["progress"] if p.get("number")]
             bar.progress(min(1.0, len(done) / max(1, len(agents) or 13)))
-            log.markdown("\n".join(
-                f"{ {'ok': '✅', 'error': '⚠️', 'skipped': '⏭️'}.get(p.get('status'), '•') } **{md(p['name'])}**"
-                + (f" · {p['ms'] / 1000:.1f}s" if p.get("ms") else "")
-                + (" · self-corrected" if p.get("attempts", 1) > 1 else "")
-                + (f" · {md(p.get('error'))}" if p.get("error") else "")
-                for p in job["progress"]))
+            log.markdown(
+                "\n".join(
+                    f"{ {'ok': '✅', 'error': '⚠️', 'skipped': '⏭️'}.get(p.get('status'), '•') } **{md(p['name'])}**"
+                    + (f" · {p['ms'] / 1000:.1f}s" if p.get("ms") else "")
+                    + (" · self-corrected" if p.get("attempts", 1) > 1 else "")
+                    + (f" · {md(p.get('error'))}" if p.get("error") else "")
+                    for p in job["progress"]
+                )
+            )
             if job["status"] in ("done", "failed"):
                 break
         if job["status"] == "failed":
@@ -181,7 +193,8 @@ if not data:
         "Describe a venture, add its website or pitch deck. Specialised agents research the market and "
         "competitors, check the deck's own numbers against independent sources, size the market and score "
         "the venture with a fixed rubric. Every section shows its sources and how much evidence it rests on. "
-        "Hidden text and instructions aimed at the AI are stripped from decks before anything reads them.")
+        "Hidden text and instructions aimed at the AI are stripped from decks before anything reads them."
+    )
     st.stop()
 
 # ------------------------------------------------------------------ results
@@ -197,30 +210,60 @@ c1.metric("Venture score", f"{score:.0%}")
 c2.metric("Recommendation", rec)
 c3.metric("Quality checks", f"{evals.get('passed', 0)}/{evals.get('total', 0)}")
 c4.metric("Model cost", f"${cost.get('spent_usd', 0):.4f}")
-c5.download_button("Download PDF", build_pdf(data), file_name="ventureslab_report.pdf",
-                   mime="application/pdf", use_container_width=True)
+c5.download_button(
+    "Download PDF",
+    build_pdf(data),
+    file_name="ventureslab_report.pdf",
+    mime="application/pdf",
+    use_container_width=True,
+)
 st.progress(min(max(score, 0.0), 1.0))
 if ok(data.get("scoring")):
     st.info(md(data["scoring"]["verdict_rationale"]))
     confidence_badge(data, "scoring")
 if sec.get("hidden_text") or sec.get("injections"):
-    st.error(f"🛡️ This deck tried to manipulate the analysis: {sec.get('hidden_text', 0)} hidden passage(s) and "
-             f"{sec.get('injections', 0)} instruction(s) aimed at the AI were removed before analysis. "
-             "See the Integrity tab.")
+    st.error(
+        f"🛡️ This deck tried to manipulate the analysis: {sec.get('hidden_text', 0)} hidden passage(s) and "
+        f"{sec.get('injections', 0)} instruction(s) aimed at the AI were removed before analysis. "
+        "See the Integrity tab."
+    )
 if data.get("degraded_agents"):
-    st.warning("Some sections are unavailable (" + ", ".join(data["degraded_agents"]) + "); the rest of the report "
-               "is complete.")
+    st.warning(
+        "Some sections are unavailable (" + ", ".join(data["degraded_agents"]) + "); the rest of the report "
+        "is complete."
+    )
 hist = data.get("history") or {}
 if hist.get("previous_version"):
     ch = hist["previous_version"]["changes"]
-    st.info(("🔁 Same deck as the last run; differences are model variance: " if ch.get("same_deck")
-             else "🔁 Updated deck since the last version: ") + describe_changes(ch))
+    st.info(
+        (
+            "🔁 Same deck as the last run; differences are model variance: "
+            if ch.get("same_deck")
+            else "🔁 Updated deck since the last version: "
+        )
+        + describe_changes(ch)
+    )
 if hist.get("similar"):
-    st.caption("🧭 Similar to past decks: " + ", ".join(
-        f"{s['company']} ({s['recommendation']}, similarity {s['similarity']:.2f})" for s in hist["similar"]))
+    st.caption(
+        "🧭 Similar to past decks: "
+        + ", ".join(
+            f"{s['company']} ({s['recommendation']}, similarity {s['similarity']:.2f})" for s in hist["similar"]
+        )
+    )
 
-tabs = st.tabs(["Overview", "Deck claims", "Market & competition", "Strategy", "Validation", "Execution",
-                "Integrity", "Ask", "Quality & trace"])
+tabs = st.tabs(
+    [
+        "Overview",
+        "Deck claims",
+        "Market & competition",
+        "Strategy",
+        "Validation",
+        "Execution",
+        "Integrity",
+        "Ask",
+        "Quality & trace",
+    ]
+)
 
 with tabs[0]:
     a, b = st.columns(2)
@@ -246,13 +289,17 @@ with tabs[1]:
     claims = data.get("claims") or {}
     if claims.get("claims"):
         s = claims["summary"]
-        st.markdown(f"**{s.get('conflict', 0)} conflict(s)** with independent sources · "
-                    f"{s.get('consistent', 0)} consistent · {s.get('unverifiable', 0)} unverifiable · "
-                    f"{s.get('citations_not_found', 0)} citation(s) not found on the slide")
+        st.markdown(
+            f"**{s.get('conflict', 0)} conflict(s)** with independent sources · "
+            f"{s.get('consistent', 0)} consistent · {s.get('unverifiable', 0)} unverifiable · "
+            f"{s.get('citations_not_found', 0)} citation(s) not found on the slide"
+        )
         for c in claims["claims"]:
             with st.container(border=True):
-                st.markdown(f"**{md(c['claim'])}** · slide {c['slide']} · {STATUS.get(c['status'], c['status'])}"
-                            + (" · ⚠️ quote not found on slide" if c["citation"] != "verified" else ""))
+                st.markdown(
+                    f"**{md(c['claim'])}** · slide {c['slide']} · {STATUS.get(c['status'], c['status'])}"
+                    + (" · ⚠️ quote not found on slide" if c["citation"] != "verified" else "")
+                )
                 st.caption(f"Deck says: “{md(c['quote'])}”")
                 if c.get("external_estimate"):
                     st.markdown(f"Independent estimate: **{md(c['external_estimate'])}**")
@@ -275,8 +322,10 @@ with tabs[2]:
                 st.markdown(f"- {md(x)}")
         sources(data, "market_size")
     if ok(mk):
-        st.markdown(f"**Industry:** {md(mk['industry'])} · **Market:** {md(mk['market_size_estimate'])} "
-                    f"· **CAGR:** {md(mk['cagr'])} · **Attractiveness:** {mk['market_attractiveness_score']}/10")
+        st.markdown(
+            f"**Industry:** {md(mk['industry'])} · **Market:** {md(mk['market_size_estimate'])} "
+            f"· **CAGR:** {md(mk['cagr'])} · **Attractiveness:** {mk['market_attractiveness_score']}/10"
+        )
         confidence_badge(data, "market_analysis")
         sources(data, "market_analysis")
     comps = data.get("competitors", [])
@@ -327,8 +376,12 @@ with tabs[4]:
         if ok(cust):
             st.metric("Pain score", f"{cust['customer_pain_score']}/10")
             st.write(f"**{cust['real_pain_or_nice_to_have'].title()}**, frequency: {md(cust['frequency_of_problem'])}")
-            flags = {"Faster": cust["solution_is_faster"], "Cheaper": cust["solution_is_cheaper"],
-                     "Easier": cust["solution_is_easier"], "Tech advantage": cust["technological_advantage"]}
+            flags = {
+                "Faster": cust["solution_is_faster"],
+                "Cheaper": cust["solution_is_cheaper"],
+                "Easier": cust["solution_is_easier"],
+                "Tech advantage": cust["technological_advantage"],
+            }
             st.write(" · ".join(f"{'✅' if v else '❌'} {k}" for k, v in flags.items()))
             confidence_badge(data, "customer_validation")
             sources(data, "customer_validation")
@@ -363,9 +416,11 @@ with tabs[5]:
 
 with tabs[6]:
     st.subheader("Input integrity")
-    st.markdown(f"Defences {'on' if sec.get('defenses_enabled', True) else '**off**'} · semantic screen: "
-                f"{sec.get('semantic_screen', 'n/a')} · {sec.get('hidden_text', 0)} hidden passage(s), "
-                f"{sec.get('injections', 0)} instruction(s) removed")
+    st.markdown(
+        f"Defences {'on' if sec.get('defenses_enabled', True) else '**off**'} · semantic screen: "
+        f"{sec.get('semantic_screen', 'n/a')} · {sec.get('hidden_text', 0)} hidden passage(s), "
+        f"{sec.get('injections', 0)} instruction(s) removed"
+    )
     if sec.get("findings"):
         st.dataframe(sec["findings"], use_container_width=True, hide_index=True)
     else:
@@ -374,8 +429,11 @@ with tabs[6]:
     if plan:
         st.subheader("Plan")
         st.caption(f"Chosen by: {data['plan'].get('source')}")
-        st.dataframe([{"agent": k, "ran": v["run"], "reason": v["reason"]} for k, v in plan.items()],
-                     use_container_width=True, hide_index=True)
+        st.dataframe(
+            [{"agent": k, "ran": v["run"], "reason": v["reason"]} for k, v in plan.items()],
+            use_container_width=True,
+            hide_index=True,
+        )
 
 with tabs[7]:
     st.subheader("Ask about this report")
@@ -386,8 +444,12 @@ with tabs[7]:
     if run_id and (q := st.chat_input("Why is the market score low?")):
         chat.append({"role": "user", "text": q})
         try:
-            ans = api("POST", f"/runs/{run_id}/ask", json={"question": q, "history": [
-                {"role": m["role"], "text": m["text"]} for m in chat[:-1]]}, timeout=120).json()
+            ans = api(
+                "POST",
+                f"/runs/{run_id}/ask",
+                json={"question": q, "history": [{"role": m["role"], "text": m["text"]} for m in chat[:-1]]},
+                timeout=120,
+            ).json()
             chat.append({"role": "assistant", "text": ans.get("answer", str(ans))})
         except Exception as exc:
             chat.append({"role": "assistant", "text": f"Could not answer: {exc}"})
@@ -404,13 +466,33 @@ with tabs[7]:
 
 with tabs[8]:
     st.subheader("Agent trace")
-    st.dataframe([{k: (", ".join(t[k]) if isinstance(t.get(k), list) else t.get(k))
-                   for k in ("number", "agent", "status", "ms", "attempts", "models", "cost_usd", "checks_passed",
-                             "checks_total", "error")} for t in data.get("trace", [])],
-                 use_container_width=True, hide_index=True)
+    st.dataframe(
+        [
+            {
+                k: (", ".join(t[k]) if isinstance(t.get(k), list) else t.get(k))
+                for k in (
+                    "number",
+                    "agent",
+                    "status",
+                    "ms",
+                    "attempts",
+                    "models",
+                    "cost_usd",
+                    "checks_passed",
+                    "checks_total",
+                    "error",
+                )
+            }
+            for t in data.get("trace", [])
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
     if cost.get("by_model"):
         st.subheader("Cost by model")
-        st.dataframe([{"model": k, **v} for k, v in cost["by_model"].items()], use_container_width=True, hide_index=True)
+        st.dataframe(
+            [{"model": k, **v} for k, v in cost["by_model"].items()], use_container_width=True, hide_index=True
+        )
     st.subheader("Failed quality checks")
     failed = evals.get("failed", [])
     if failed:

@@ -13,4 +13,4 @@ receivers:
         http_config:
           authorization:
             type: Bearer
-            credentials_file: /tmp/webhook_token   
+            credentials_file: /tmp/webhook_token

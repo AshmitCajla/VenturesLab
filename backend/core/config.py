@@ -1,5 +1,6 @@
 """Central configuration. Every secret comes from the environment (or a local,
 git-ignored .env file) - never from source code."""
+
 from __future__ import annotations
 
 import os
@@ -40,10 +41,16 @@ class Settings:
     # (ops/canary.py) checks every model in the chain. With OpenRouter credits, openai/gpt-oss-20b and
     # openai/gpt-oss-120b keep the fallback in the same model family. OPENROUTER_MODEL overrides both.
     openrouter_model: str = field(default_factory=lambda: _env("OPENROUTER_MODEL"))
-    openrouter_fast_model: str = field(default_factory=lambda: _env(
-        "OPENROUTER_FAST_MODEL", "nvidia/nemotron-3.5-lightning:free,nvidia/nemotron-3-ultra-550b-a55b:free"))
-    openrouter_reasoning_model: str = field(default_factory=lambda: _env(
-        "OPENROUTER_REASONING_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free,nvidia/nemotron-3.5-lightning:free"))
+    openrouter_fast_model: str = field(
+        default_factory=lambda: _env(
+            "OPENROUTER_FAST_MODEL", "nvidia/nemotron-3.5-lightning:free,nvidia/nemotron-3-ultra-550b-a55b:free"
+        )
+    )
+    openrouter_reasoning_model: str = field(
+        default_factory=lambda: _env(
+            "OPENROUTER_REASONING_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free,nvidia/nemotron-3.5-lightning:free"
+        )
+    )
     canary_interval_s: float = field(default_factory=lambda: float(_env("CANARY_INTERVAL_S", "900")))
     # Second-pass screen for paraphrased injections (fast model, batched); 0 to disable
     semantic_screen: bool = field(default_factory=lambda: _env("SEMANTIC_SCREEN", "1") == "1")

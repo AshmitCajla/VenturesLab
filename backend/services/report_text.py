@@ -1,4 +1,5 @@
 """Plain-text and Markdown renderings of a run, for Slack, MCP and the digest."""
+
 from __future__ import annotations
 
 
@@ -26,14 +27,18 @@ def red_flags(result: dict, limit: int = 4) -> list[str]:
     flags = []
     for c in (result.get("claims") or {}).get("claims", []):
         if c.get("status") == "conflict":
-            flags.append(f"Deck claims {c['value']} ({c['kind'].replace('_', ' ')}, slide {c['slide']}); "
-                         f"independent sources: {c.get('external_estimate') or 'disagree'}")
+            flags.append(
+                f"Deck claims {c['value']} ({c['kind'].replace('_', ' ')}, slide {c['slide']}); "
+                f"independent sources: {c.get('external_estimate') or 'disagree'}"
+            )
         elif c.get("citation") == "citation_not_found":
             flags.append(f"Claim '{c['claim'][:80]}' could not be found on slide {c['slide']}")
     sec = result.get("security") or {}
     if sec.get("hidden_text") or sec.get("injections"):
-        flags.append(f"Deck contained {sec.get('hidden_text', 0)} hidden passage(s) and "
-                     f"{sec.get('injections', 0)} instruction(s) aimed at the AI; removed before analysis")
+        flags.append(
+            f"Deck contained {sec.get('hidden_text', 0)} hidden passage(s) and "
+            f"{sec.get('injections', 0)} instruction(s) aimed at the AI; removed before analysis"
+        )
     low = [k for k, v in (result.get("confidence") or {}).items() if v.get("level") == "Low"]
     if low:
         flags.append("Thin evidence for: " + ", ".join(k.replace("_", " ") for k in low))
@@ -44,8 +49,13 @@ def to_markdown(result: dict, run_id: str | None = None) -> str:
     p = result.get("venture_profile") or {}
     lines = [f"# {headline(result)}", ""]
     if ok(p):
-        lines += [f"**Problem:** {p['problem']}", f"**Solution:** {p['solution']}",
-                  f"**Customer:** {p['customer']}", f"**Model:** {p['business_model']} · **Stage:** {p['stage']}", ""]
+        lines += [
+            f"**Problem:** {p['problem']}",
+            f"**Solution:** {p['solution']}",
+            f"**Customer:** {p['customer']}",
+            f"**Model:** {p['business_model']} · **Stage:** {p['stage']}",
+            "",
+        ]
     sc = result.get("scoring") or {}
     if ok(sc):
         lines += [f"**Verdict:** {sc.get('verdict_rationale', '')}", "", "| criterion | score | why |", "|---|---|---|"]
@@ -59,9 +69,11 @@ def to_markdown(result: dict, run_id: str | None = None) -> str:
     if claims:
         lines += ["**Deck claims checked:**"]
         for c in claims:
-            lines.append(f"- {c['claim']} (slide {c['slide']}): {c['status']}"
-                         + (f"; outside estimate {c['external_estimate']}" if c.get("external_estimate") else "")
-                         + ("; citation not found" if c.get("citation") == "citation_not_found" else ""))
+            lines.append(
+                f"- {c['claim']} (slide {c['slide']}): {c['status']}"
+                + (f"; outside estimate {c['external_estimate']}" if c.get("external_estimate") else "")
+                + ("; citation not found" if c.get("citation") == "citation_not_found" else "")
+            )
         lines.append("")
     flags = red_flags(result)
     if flags:

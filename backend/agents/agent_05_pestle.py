@@ -6,16 +6,21 @@ def build_prompt(state, ctx):
     return f"""You are a macro-economist and regulatory strategist. Assess the external environment
 this venture operates in.
 
-Startup: {as_json(state['venture_profile'])}
-Market: {as_json(state.get('market_analysis', {}))}
+Startup: {as_json(state["venture_profile"])}
+Market: {as_json(state.get("market_analysis", {}))}
 
 For each PESTLE factor write 2-3 sentences naming concrete regulations, trends or risks
 relevant to this specific industry and geography (not generic statements)."""
 
 
 SPEC = AgentSpec(
-    number=5, name="PESTLE", output_key="pestle", schema=PESTLEAnalysis, role="reasoning",
+    number=5,
+    name="PESTLE",
+    output_key="pestle",
+    schema=PESTLEAnalysis,
+    role="reasoning",
     build_prompt=build_prompt,
-    optional=True, description="PESTLE: political, economic, social, technological, legal, environmental factors. Valuable when regulation, policy or macro trends materially affect the business.",
+    optional=True,
+    description="PESTLE: political, economic, social, technological, legal, environmental factors. Valuable when regulation, policy or macro trends materially affect the business.",
 )
 pestle_agent = make_node(SPEC)

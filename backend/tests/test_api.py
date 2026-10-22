@@ -1,6 +1,6 @@
 import time
 
-import fitz
+import pymupdf
 import pytest
 from fastapi.testclient import TestClient
 
@@ -8,7 +8,7 @@ import main
 
 
 def make_pdf(text: str) -> bytes:
-    doc = fitz.open()
+    doc = pymupdf.open()
     for para in text.split("\n\n"):
         doc.new_page().insert_text((72, 72), para)
     return doc.tobytes()
@@ -53,8 +53,9 @@ def test_blocks_private_urls(client):
 
 def test_job_with_pitch_deck(client, fake_llm):
     pdf = make_pdf("ClinicFlow pitch\n\nProblem: no-shows\n\nFinancials: revenue $2M, burn $40k/month")
-    r = client.post("/analyze", data={"idea": "Clinic scheduling"},
-                    files={"file": ("deck.pdf", pdf, "application/pdf")})
+    r = client.post(
+        "/analyze", data={"idea": "Clinic scheduling"}, files={"file": ("deck.pdf", pdf, "application/pdf")}
+    )
     assert r.status_code == 202
     body = wait(client, r.json()["job_id"])
     assert body["status"] == "done", body["error"]

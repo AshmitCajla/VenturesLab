@@ -6,6 +6,7 @@ returning 404 for days.) Every ``CANARY_INTERVAL_S`` each target gets a tiny
 structured request; the result is a Prometheus gauge per target, and
 ``FallbackModelDown`` alerts on it (deploy/prometheus/rules.yml).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -45,8 +46,15 @@ async def probe_once(timeout_s: float = 60) -> list[dict]:
             elapsed = time.perf_counter() - started
             TARGET_UP.labels(role, provider, model).set(up)
             TARGET_LATENCY.labels(role, provider, model).set(elapsed)
-            row = {"role": role, "provider": provider, "model": model, "up": bool(up),
-                   "seconds": round(elapsed, 1), "error": error, "checked": time.time()}
+            row = {
+                "role": role,
+                "provider": provider,
+                "model": model,
+                "up": bool(up),
+                "seconds": round(elapsed, 1),
+                "error": error,
+                "checked": time.time(),
+            }
             _last[f"{role}:{provider}:{model}"] = row
             results.append(row)
             if not up:

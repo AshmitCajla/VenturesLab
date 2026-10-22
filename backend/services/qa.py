@@ -4,6 +4,7 @@ Answers come only from that run's stored result: agent outputs, checks,
 evidence, claims and slide text. The run's content is fenced as untrusted data,
 because it was derived from the founder's deck.
 """
+
 from __future__ import annotations
 
 import json
@@ -13,10 +14,28 @@ from pydantic import BaseModel, Field
 from core.llm import call_structured
 from services.security import SECURITY_PREAMBLE, fence
 
-CONTEXT_KEYS = ("venture_profile", "scoring", "score", "recommendation", "claims", "market_analysis",
-                "market_size", "competitors", "customer_validation", "swot", "porter", "pestle",
-                "confidence", "evaluation_summary", "plan", "security", "history", "roadmap",
-                "gtm_strategy", "financial_model")
+CONTEXT_KEYS = (
+    "venture_profile",
+    "scoring",
+    "score",
+    "recommendation",
+    "claims",
+    "market_analysis",
+    "market_size",
+    "competitors",
+    "customer_validation",
+    "swot",
+    "porter",
+    "pestle",
+    "confidence",
+    "evaluation_summary",
+    "plan",
+    "security",
+    "history",
+    "roadmap",
+    "gtm_strategy",
+    "financial_model",
+)
 
 
 class Answer(BaseModel):
@@ -40,11 +59,11 @@ analyst's follow-up question using ONLY the run data below. Name the section (an
 relevant). If the data does not answer it, say so plainly and set grounded=false.
 
 Run data:
-{fence('run data', _context(result))}
+{fence("run data", _context(result))}
 
 Conversation so far:
-{convo or '(none)'}
+{convo or "(none)"}
 
-Question: {fence('question', question)}"""
+Question: {fence("question", question)}"""
     parsed, _ = await call_structured("reasoning", Answer, prompt, "Follow-up Q&A", attempts=3)
     return parsed

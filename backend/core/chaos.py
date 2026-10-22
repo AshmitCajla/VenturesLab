@@ -10,6 +10,7 @@ failures happen: LLM calls, web search and deck parsing.
     search_down     web search raises
     deck_corrupt    the uploaded deck cannot be parsed
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -30,15 +31,19 @@ class InjectedFault(RuntimeError):
 class Fault:
     name: str
     probability: float = 1.0
-    until: float = 0.0          # epoch seconds; 0 = until cleared
+    until: float = 0.0  # epoch seconds; 0 = until cleared
     params: dict = field(default_factory=dict)
 
     def live(self) -> bool:
         return not self.until or time.time() < self.until
 
     def to_dict(self) -> dict:
-        return {"name": self.name, "probability": self.probability, "params": self.params,
-                "expires_in_s": round(self.until - time.time()) if self.until else None}
+        return {
+            "name": self.name,
+            "probability": self.probability,
+            "params": self.params,
+            "expires_in_s": round(self.until - time.time()) if self.until else None,
+        }
 
 
 _active: dict[str, Fault] = {}

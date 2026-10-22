@@ -1,4 +1,5 @@
 """Slack bot, MCP servers, ops agent / incidents and the v3 API routes, all offline."""
+
 import json
 import time
 import uuid
@@ -57,10 +58,12 @@ async def test_pdf_in_channel_gets_live_progress_and_a_summary_card(fake_llm, sl
 
     async def fake_download(f):
         return make_pdf("ClinicFlow\n\nClinic software is a $50B market\n\nrevenue $2M")
+
     monkeypatch.setattr(handlers, "download_pdf", fake_download)
     monkeypatch.setattr(handlers, "UPDATE_EVERY_S", 0)
-    await handlers.on_message({"channel": "C1", "ts": "100.1", "user": "U1", "text": "",
-                               "files": [{"filetype": "pdf", "name": "deck.pdf"}]})
+    await handlers.on_message(
+        {"channel": "C1", "ts": "100.1", "user": "U1", "text": "", "files": [{"filetype": "pdf", "name": "deck.pdf"}]}
+    )
     await _drain()
     progress = slack.posts[0]
     assert progress["thread_ts"] == "100.1" and "Queued" in progress["text"]
@@ -76,11 +79,17 @@ async def test_pdf_in_channel_gets_live_progress_and_a_summary_card(fake_llm, sl
 async def test_thread_follow_up_is_answered_from_the_run(fake_llm, slack, monkeypatch):
     from slack_app import handlers
 
-    run = Run(id=str(uuid.uuid4()), status="done", source="slack", result={"score": 0.8},
-              slack={"channel": "C1", "thread_ts": "200.1"})
+    run = Run(
+        id=str(uuid.uuid4()),
+        status="done",
+        source="slack",
+        result={"score": 0.8},
+        slack={"channel": "C1", "thread_ts": "200.1"},
+    )
     await runs.save(run)
-    await handlers.on_message({"channel": "C1", "ts": "200.5", "thread_ts": "200.1", "user": "U1",
-                               "text": "why is the score high?"})
+    await handlers.on_message(
+        {"channel": "C1", "ts": "200.5", "thread_ts": "200.1", "user": "U1", "text": "why is the score high?"}
+    )
     assert "pain is frequent" in slack.posts[-1]["text"]
     assert slack.posts[-1]["thread_ts"] == "200.1"
     assert len((await runs.get(run.id)).slack["qa"]) == 2
@@ -90,13 +99,22 @@ async def test_buttons_and_correction_modal_record_feedback(slack):
     from slack_app import handlers
 
     await runs.save(Run(id="r1", status="done"))
-    body = {"user": {"id": "U1"}, "channel": {"id": "C1"}, "message": {"ts": "1.0"}, "trigger_id": "t",
-            "actions": [{"action_id": "feedback_down", "value": "r1"}]}
+    body = {
+        "user": {"id": "U1"},
+        "channel": {"id": "C1"},
+        "message": {"ts": "1.0"},
+        "trigger_id": "t",
+        "actions": [{"action_id": "feedback_down", "value": "r1"}],
+    }
     await handlers.on_action(body)
     await handlers.on_action({**body, "actions": [{"action_id": "correct", "value": "r1"}]})
     view = slack.views[0]["view"]
-    view["state"] = {"values": {"section": {"value": {"selected_option": {"value": "market_size"}}},
-                                "comment": {"value": {"value": "TAM is closer to $2B"}}}}
+    view["state"] = {
+        "values": {
+            "section": {"value": {"selected_option": {"value": "market_size"}}},
+            "comment": {"value": {"value": "TAM is closer to $2B"}},
+        }
+    }
     await handlers.on_correction(view, "U1")
     rows = await runs.corrections()
     assert rows[0]["section"] == "market_size" and rows[0]["comment"] == "TAM is closer to $2B"
@@ -140,8 +158,9 @@ async def test_ventureslab_mcp_server_analyses_and_compares(fake_llm):
         a = json.loads((await c.call_tool("analyze_deck", {"description": "Clinic scheduling"})).content[0].text)
         b = json.loads((await c.call_tool("analyze_deck", {"description": "Clinic scheduling v2"})).content[0].text)
         assert a["status"] == "done" and "ClinicFlow: BUILD" in a["report_markdown"]
-        cmp = json.loads((await c.call_tool("compare_decks", {"run_id_a": a["run_id"], "run_id_b": b["run_id"]}))
-                         .content[0].text)
+        cmp = json.loads(
+            (await c.call_tool("compare_decks", {"run_id_a": a["run_id"], "run_id_b": b["run_id"]})).content[0].text
+        )
         assert cmp["a"]["recommendation"] == "BUILD"
         bad = await c.call_tool("analyze_deck", {})
         assert bad.is_error
@@ -150,8 +169,15 @@ async def test_ventureslab_mcp_server_analyses_and_compares(fake_llm):
 async def test_ops_mcp_server_exposes_observability_tools():
     from mcp_servers.ops_server import server
 
-    await runs.save(Run(id="f1", status="failed", error="RateLimitError: Error code: 429 tokens per day",
-                        created=time.time() - 30, finished=time.time()))
+    await runs.save(
+        Run(
+            id="f1",
+            status="failed",
+            error="RateLimitError: Error code: 429 tokens per day",
+            created=time.time() - 30,
+            finished=time.time(),
+        )
+    )
     async with Client(server) as c:
         names = {t.name for t in (await c.list_tools()).tools}
         assert {"slo_status", "error_signatures", "recent_logs", "get_trace", "read_runbook"} <= names
@@ -164,9 +190,13 @@ async def test_ops_mcp_server_exposes_observability_tools():
 
 
 # ---------------------------------------------------------- incidents (ops agent)
-ALERT = {"status": "firing", "fingerprint": "abc", "startsAt": "2026-10-22T01:00:00Z",
-         "labels": {"alertname": "ReportCompletenessBudgetBurn", "severity": "page"},
-         "annotations": {"summary": "Too many reports are missing sections."}}
+ALERT = {
+    "status": "firing",
+    "fingerprint": "abc",
+    "startsAt": "2026-10-22T01:00:00Z",
+    "labels": {"alertname": "ReportCompletenessBudgetBurn", "severity": "page"},
+    "annotations": {"summary": "Too many reports are missing sections."},
+}
 
 
 async def test_alert_opens_incident_thread_with_diagnosis_then_postmortem(fake_llm, slack):
@@ -234,8 +264,15 @@ async def test_diagnosis_falls_back_to_rules_when_the_model_is_down(slack):
     from ops.agent import Diagnosis, diagnose
     from tests.fakes import FakeLLM
 
-    await runs.save(Run(id="f1", status="failed", error="TimeoutError: chaos: injected LLM timeout",
-                        created=time.time() - 30, finished=time.time()))
+    await runs.save(
+        Run(
+            id="f1",
+            status="failed",
+            error="TimeoutError: chaos: injected LLM timeout",
+            created=time.time() - 30,
+            finished=time.time(),
+        )
+    )
     model_router.set_llm_factory(lambda role: FakeLLM({Diagnosis: [RuntimeError("429 tokens per day")] * 9}))
     try:
         diag, _ = await diagnose(ALERT)
@@ -243,3 +280,12 @@ async def test_diagnosis_falls_back_to_rules_when_the_model_is_down(slack):
         model_router.set_llm_factory(None)
     assert diag.category == "llm_timeout" and diag.confidence == "Low"
     assert "model unavailable" in diag.summary
+
+
+async def test_slack_check_explains_a_missing_token(capsys):
+    from slack_app.check import check
+
+    with pytest.raises(SystemExit) as exit_info:
+        await check(post=False)
+    assert exit_info.value.code == 1
+    assert "SLACK_BOT_TOKEN" in capsys.readouterr().out

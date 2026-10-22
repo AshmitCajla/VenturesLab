@@ -8,6 +8,7 @@
 * Buttons: re-run, 👍/👎, "correct a section" (modal; saved as a labelled correction).
 * App Home: the user's recent runs.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -74,16 +75,34 @@ def _progress_updater():
         if r.status == "done" and not s.get("card_ts"):
             text, blks = blocks.summary_card(r)
             s["card_ts"] = await slack_client.post(s["channel"], text, blks, thread_ts=s["thread_ts"]) or "posted"
+
     return on_update
 
 
-async def start_run(*, channel: str, thread_ts: str, user: str | None, idea: str = "", url: str = "",
-                    pdf: bytes | None = None, file: dict | None = None) -> Run:
-    run = Run(id=str(uuid.uuid4()), source="slack", user_id=user,
-              input={"idea": idea[:8000], "url": url, "filename": (file or {}).get("name"),
-                     "slack_file": {k: (file or {}).get(k) for k in ("id", "url_private_download", "size", "name")}
-                     if file else None},
-              slack={"channel": channel, "thread_ts": thread_ts})
+async def start_run(
+    *,
+    channel: str,
+    thread_ts: str,
+    user: str | None,
+    idea: str = "",
+    url: str = "",
+    pdf: bytes | None = None,
+    file: dict | None = None,
+) -> Run:
+    run = Run(
+        id=str(uuid.uuid4()),
+        source="slack",
+        user_id=user,
+        input={
+            "idea": idea[:8000],
+            "url": url,
+            "filename": (file or {}).get("name"),
+            "slack_file": {k: (file or {}).get(k) for k in ("id", "url_private_download", "size", "name")}
+            if file
+            else None,
+        },
+        slack={"channel": channel, "thread_ts": thread_ts},
+    )
     head, blks = blocks.progress(run, len(AGENTS))
     run.slack["progress_ts"] = await slack_client.post(channel, head, blks, thread_ts=thread_ts)
     await runs.save(run)
@@ -94,14 +113,17 @@ async def start_run(*, channel: str, thread_ts: str, user: str | None, idea: str
 async def run_for_thread(channel: str, thread_ts: str) -> Run | None:
     row = await get_db().fetchone(
         "select id from runs where json_extract(slack, '$.channel') = ? and json_extract(slack, '$.thread_ts') = ? "
-        "order by created desc limit 1", (channel, thread_ts))
+        "order by created desc limit 1",
+        (channel, thread_ts),
+    )
     return await runs.get(row["id"]) if row else None
 
 
 async def answer_in_thread(run: Run, channel: str, thread_ts: str, question: str) -> None:
     if run.status != "done":
-        await slack_client.post(channel, f"The analysis is still {run.status}; ask again when it's done.",
-                                thread_ts=thread_ts)
+        await slack_client.post(
+            channel, f"The analysis is still {run.status}; ask again when it's done.", thread_ts=thread_ts
+        )
         return
     history = (run.slack or {}).get("qa", [])
     try:
@@ -111,8 +133,10 @@ async def answer_in_thread(run: Run, channel: str, thread_ts: str, question: str
         logger.exception("follow-up failed")
         text = f"Sorry, I couldn't answer that ({type(exc).__name__})."
     await slack_client.post(channel, text, thread_ts=thread_ts)
-    run.slack = {**(run.slack or {}), "qa": (history + [{"role": "analyst", "text": question},
-                                                        {"role": "you", "text": text}])[-12:]}
+    run.slack = {
+        **(run.slack or {}),
+        "qa": ([*history, {"role": "analyst", "text": question}, {"role": "you", "text": text}])[-12:],
+    }
     await runs.save(run)
 
 
@@ -130,8 +154,14 @@ async def on_message(event: dict) -> None:
         except Exception as exc:
             await slack_client.post(channel, f"I couldn't read *{f.get('name')}*: {exc}", thread_ts=thread_ts)
             return
-        await start_run(channel=channel, thread_ts=thread_ts, user=event.get("user"),
-                        idea=MENTION_RE.sub("", event.get("text", "")).strip(), pdf=pdf, file=f)
+        await start_run(
+            channel=channel,
+            thread_ts=thread_ts,
+            user=event.get("user"),
+            idea=MENTION_RE.sub("", event.get("text", "")).strip(),
+            pdf=pdf,
+            file=f,
+        )
         return
     if event.get("thread_ts") and event["thread_ts"] != ts:
         run = await run_for_thread(channel, event["thread_ts"])
@@ -158,8 +188,11 @@ async def on_mention(event: dict) -> None:
         await slack_client.post(channel, reply, thread_ts=thread_ts or ts)
         return
     if not text:
-        await slack_client.post(channel, "Drop a pitch-deck PDF here, or mention me with a website or a "
-                                "short description of the startup.", thread_ts=ts)
+        await slack_client.post(
+            channel,
+            "Drop a pitch-deck PDF here, or mention me with a website or a short description of the startup.",
+            thread_ts=ts,
+        )
         return
     m = URL_RE.search(text)
     url = m.group(1) if m else ""
@@ -177,8 +210,9 @@ async def on_action(body: dict) -> None:
         rating = "up" if aid == "feedback_up" else "down"
         await runs.add_feedback(run_id, rating, user)
         FEEDBACK.labels(rating).inc()
-        await slack_client.post(channel, f"Thanks <@{user}>, feedback recorded ({'👍' if rating == 'up' else '👎'}).",
-                                thread_ts=thread_ts)
+        await slack_client.post(
+            channel, f"Thanks <@{user}>, feedback recorded ({'👍' if rating == 'up' else '👎'}).", thread_ts=thread_ts
+        )
     elif aid == "rerun":
         old = await runs.get(run_id)
         if not old:
@@ -190,13 +224,22 @@ async def on_action(body: dict) -> None:
             except Exception as exc:
                 await slack_client.post(channel, f"Couldn't fetch the deck again: {exc}", thread_ts=thread_ts)
                 return
-        await start_run(channel=channel, thread_ts=thread_ts, user=user, idea=old.input.get("idea", ""),
-                        url=old.input.get("url", ""), pdf=pdf, file=old.input.get("slack_file"))
+        await start_run(
+            channel=channel,
+            thread_ts=thread_ts,
+            user=user,
+            idea=old.input.get("idea", ""),
+            url=old.input.get("url", ""),
+            pdf=pdf,
+            file=old.input.get("slack_file"),
+        )
     elif aid == "correct":
         c = slack_client.client()
         if c:
-            await c.views_open(trigger_id=body["trigger_id"],
-                               view=blocks.correction_modal(run_id, {"channel": channel, "thread_ts": thread_ts}))
+            await c.views_open(
+                trigger_id=body["trigger_id"],
+                view=blocks.correction_modal(run_id, {"channel": channel, "thread_ts": thread_ts}),
+            )
 
 
 async def on_correction(view: dict, user: str | None) -> None:
@@ -207,8 +250,12 @@ async def on_correction(view: dict, user: str | None) -> None:
     await runs.add_feedback(run_id, "correction", user, section, comment)
     FEEDBACK.labels("correction").inc()
     if channel:
-        await slack_client.post(channel, f"✏️ Correction to *{section.replace('_', ' ')}* saved by <@{user}>. "
-                                "It is now a labelled case in the evaluation set.", thread_ts=thread_ts or None)
+        await slack_client.post(
+            channel,
+            f"✏️ Correction to *{section.replace('_', ' ')}* saved by <@{user}>. "
+            "It is now a labelled case in the evaluation set.",
+            thread_ts=thread_ts or None,
+        )
 
 
 async def on_home_opened(user: str) -> None:

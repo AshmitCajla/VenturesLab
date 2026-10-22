@@ -3,12 +3,12 @@
 The judge rates a report section 1-5 on specificity, grounding in the evidence
 and usefulness to an investor. Its numbers are only reported as trusted after
 calibration: it re-rates sections a human already rated
-(``golden/judge_labels.json``) and we measure agreement. Below
+(``data/golden/judge_labels.json``) and we measure agreement. Below
 ``MIN_LABELS`` labels, or below ``MIN_KAPPA`` weighted kappa, the report says
 the judge is uncalibrated and its scores must not be used to gate anything.
 
 Analyst corrections from Slack are the other half of the loop:
-``--export-corrections`` writes them to ``golden/corrections.jsonl``; ``--check-corrections``
+``--export-corrections`` writes them to ``data/golden/corrections.jsonl``; ``--check-corrections``
 re-runs each corrected input and asks the judge whether the new section still
 contains the error the analyst described.
 
@@ -16,6 +16,7 @@ contains the error the analyst described.
     python -m evaluation.judge --export-corrections
     python -m evaluation.judge --check-corrections
 """
+
 from __future__ import annotations
 
 import argparse
@@ -28,8 +29,9 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 HERE = Path(__file__).resolve().parent
-GOLDEN = HERE / "golden"
 sys.path.insert(0, str(HERE.parent))
+
+from evaluation.paths import GOLDEN  # noqa: E402
 
 MIN_LABELS = 20
 MIN_KAPPA = 0.6
@@ -56,8 +58,8 @@ async def rate(section: str, output, evidence: dict) -> Rating:
 report from 1 to 5 on each dimension. Judge only against the evidence shown.
 
 Section: {section}
-Output: {fence('section output', json.dumps(output, default=str)[:6000])}
-Evidence the analyst had: {fence('evidence', json.dumps(evidence, default=str)[:6000])}"""
+Output: {fence("section output", json.dumps(output, default=str)[:6000])}
+Evidence the analyst had: {fence("evidence", json.dumps(evidence, default=str)[:6000])}"""
     r, _ = await call_structured("reasoning", Rating, prompt, "Judge", attempts=3)
     return r
 
@@ -91,10 +93,16 @@ async def calibrate() -> dict:
     within1 = sum(abs(h - m) <= 1 for h, m in zip(human, model, strict=True)) / len(human) if human else None
     kappa = weighted_kappa(human, model) if human else None
     trusted = bool(human) and len(human) >= MIN_LABELS and kappa is not None and kappa >= MIN_KAPPA
-    return {"labels": len(human), "exact_agreement": exact, "within_one": within1, "weighted_kappa": kappa,
-            "trusted": trusted,
-            "verdict": "trusted" if trusted else
-            f"UNCALIBRATED: need >= {MIN_LABELS} human labels and kappa >= {MIN_KAPPA} before using judge scores"}
+    return {
+        "labels": len(human),
+        "exact_agreement": exact,
+        "within_one": within1,
+        "weighted_kappa": kappa,
+        "trusted": trusted,
+        "verdict": "trusted"
+        if trusted
+        else f"UNCALIBRATED: need >= {MIN_LABELS} human labels and kappa >= {MIN_KAPPA} before using judge scores",
+    }
 
 
 async def export_corrections() -> int:
@@ -104,8 +112,18 @@ async def export_corrections() -> int:
     GOLDEN.mkdir(exist_ok=True)
     with (GOLDEN / "corrections.jsonl").open("w") as f:
         for r in rows:
-            f.write(json.dumps({"run_id": r["run_id"], "section": r["section"], "correction": r["comment"],
-                                "input": json.loads(r["input"]) if r["input"] else {}, "title": r["title"]}) + "\n")
+            f.write(
+                json.dumps(
+                    {
+                        "run_id": r["run_id"],
+                        "section": r["section"],
+                        "correction": r["comment"],
+                        "input": json.loads(r["input"]) if r["input"] else {},
+                        "title": r["title"],
+                    }
+                )
+                + "\n"
+            )
     return len(rows)
 
 
@@ -123,11 +141,23 @@ async def check_corrections() -> list[dict]:
             continue
         run = await execute(Run(id=str(uuid.uuid4()), source="eval", input=c["input"]))
         section = (run.result or {}).get(c["section"])
-        verdict, _ = await call_structured("reasoning", StillWrong, f"""An analyst said this section was wrong:
-"{c['correction']}". Here is the section regenerated today: {json.dumps(section, default=str)[:6000]}.
-Does it still contain the error the analyst described?""", "Correction check", attempts=3)
-        out.append({"run_id": c["run_id"], "section": c["section"], "fixed": not verdict.still_contains_error,
-                    "explanation": verdict.explanation})
+        verdict, _ = await call_structured(
+            "reasoning",
+            StillWrong,
+            f"""An analyst said this section was wrong:
+"{c["correction"]}". Here is the section regenerated today: {json.dumps(section, default=str)[:6000]}.
+Does it still contain the error the analyst described?""",
+            "Correction check",
+            attempts=3,
+        )
+        out.append(
+            {
+                "run_id": c["run_id"],
+                "section": c["section"],
+                "fixed": not verdict.still_contains_error,
+                "explanation": verdict.explanation,
+            }
+        )
     return out
 
 

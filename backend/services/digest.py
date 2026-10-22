@@ -1,4 +1,5 @@
 """Weekly digest: everything analysed in the last N days, plus service health."""
+
 from __future__ import annotations
 
 import logging
@@ -27,21 +28,51 @@ async def build(days: int = 7) -> tuple[str, list[dict]]:
     title = f"📊 VenturesLab weekly digest: {len(done)} venture(s) analysed"
     blocks: list[dict] = [
         {"type": "header", "text": {"type": "plain_text", "text": title}},
-        {"type": "section", "text": {"type": "mrkdwn", "text":
-         f"🟢 BUILD {verdicts.get('BUILD', 0)} · 🟡 PIVOT {verdicts.get('PIVOT', 0)} · 🔴 PASS {verdicts.get('PASS', 0)}"
-         f" · ❌ failed {sum(r.status == 'failed' for r in recent)}"}},
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"🟢 BUILD {verdicts.get('BUILD', 0)} · 🟡 PIVOT {verdicts.get('PIVOT', 0)} · 🔴 PASS {verdicts.get('PASS', 0)}"
+                f" · ❌ failed {sum(r.status == 'failed' for r in recent)}",
+            },
+        },
     ]
     if top:
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*Highest scores*\n" + "\n".join(
-            f"• *{r.title or 'Untitled'}*: {r.recommendation} {r.score:.0%}" for r in top)}})
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*Highest scores*\n"
+                    + "\n".join(f"• *{r.title or 'Untitled'}*: {r.recommendation} {r.score:.0%}" for r in top),
+                },
+            }
+        )
     if flagged:
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "*Red flags worth a look*\n" + "\n".join(
-            f"• *{r.title or 'Untitled'}*: {f}" for r, f in flagged)}})
+        blocks.append(
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*Red flags worth a look*\n"
+                    + "\n".join(f"• *{r.title or 'Untitled'}*: {f}" for r, f in flagged),
+                },
+            }
+        )
     w = health["windows"]["1d"] if days <= 1 else health["windows"]["30d"]
-    blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text":
-                   f"Service: success {w['success_ratio'] if w['success_ratio'] is not None else 'n/a'} "
-                   f"(target {health['objectives']['success_ratio']}) · error budget left "
-                   f"{health['error_budget']['remaining_fraction']:.0%} · model spend ${cost:.3f}"}]})
+    blocks.append(
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"Service: success {w['success_ratio'] if w['success_ratio'] is not None else 'n/a'} "
+                    f"(target {health['objectives']['success_ratio']}) · error budget left "
+                    f"{health['error_budget']['remaining_fraction']:.0%} · model spend ${cost:.3f}",
+                }
+            ],
+        }
+    )
     return title, blocks
 
 

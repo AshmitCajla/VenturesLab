@@ -3,6 +3,7 @@
 Every call is a no-op (returning None) when SLACK_BOT_TOKEN is not set, so the
 rest of the system never has to check. Tests replace ``_client`` with a fake.
 """
+
 from __future__ import annotations
 
 import logging

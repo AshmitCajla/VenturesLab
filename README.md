@@ -40,17 +40,17 @@ Offline numbers use a deterministic fake model and test plumbing and the determi
 
 | Measurement | Result | Mode |
 |---|---|---|
-| Instruction attacks succeeding, defences off → on | 9/11 → 2/11 | offline, simulated gullible model ([report](backend/evaluation/redteam_report.md)) |
+| Instruction attacks succeeding, defences off → on | 9/11 → 2/11 | offline, simulated gullible model ([report](backend/evaluation/reports/redteam_report.md)) |
 | Hidden fabricated-evidence attacks, off → on | 5/5 → 1/5 (the 1 is fake traction stated openly on the website: a lie, not an injection) | offline |
-| Instruction attacks on a weak venture, off → on | 0/10 → 0/10 (gpt-oss ignored them even undefended; the scoring agent never reads the deck) | live v1 ([report](backend/evaluation/redteam_report_live.md)) |
-| Detector false positives on ordinary pitch copy | 0/30 | `evaluation/benign_lines.txt`, gated in CI |
-| Chaos: fault named by the top error signal | 6/6 | offline ([report](backend/evaluation/chaos_report.md)), gated in CI |
-| Chaos with real models: report delivered under every injected fault | 5/5 experiments; Groq outage served entirely by fallbacks | live ([report](backend/evaluation/chaos_report_live.md)) |
+| Instruction attacks on a weak venture, off → on | 0/10 → 0/10 (gpt-oss ignored them even undefended; the scoring agent never reads the deck) | live v1 ([report](backend/evaluation/reports/redteam_report_live.md)) |
+| Detector false positives on ordinary pitch copy | 0/30 | `evaluation/data/benign_lines.txt`, gated in CI |
+| Chaos: fault named by the top error signal | 6/6 | offline ([report](backend/evaluation/reports/chaos_report.md)), gated in CI |
+| Chaos with real models: report delivered under every injected fault | 5/5 experiments; Groq outage served entirely by fallbacks | live ([report](backend/evaluation/reports/chaos_report_live.md)) |
 | Chaos with real models: injected cause is the top error signal | 4/4 faults | live |
 | Inflated TAM claim flagged as conflict | yes ($50B vs $2.8-4.4B, 4 sources) | live |
 
 Hand-labelled golden decks are the missing piece for verdict accuracy; see
-[backend/evaluation/golden/README.md](backend/evaluation/golden/README.md).
+[backend/evaluation/data/golden/README.md](backend/evaluation/data/golden/README.md).
 
 ## How a run works
 
@@ -82,18 +82,20 @@ docker compose up --build                 # UI :8501 · API :8000/docs · Grafan
 Without Docker:
 
 ```bash
-cd backend && pip install -r requirements-dev.txt && uvicorn main:app --reload
-cd frontend && pip install -r requirements.txt && streamlit run app.py
+make install    # .venv with everything, plus pre-commit hooks
+make api        # API on :8000
+make ui         # UI on :8501
 ```
+
+`make help` lists every task; [CONTRIBUTING.md](CONTRIBUTING.md) covers the workflow.
 
 Slack bot and Claude Desktop: [docs/slack-and-mcp.md](docs/slack-and-mcp.md).
 
 ## Test and evaluate
 
 ```bash
+make lint test gate                         # what CI runs: lint, 79 offline tests, quality gate
 cd backend
-pytest -q                                   # 78 offline tests, no keys needed
-python -m evaluation.gate                   # quality gate (also runs in CI on every PR)
 python -m evaluation.redteam --live         # attack success rate with real models
 python -m evaluation.chaos --live --runs 2  # fault injection with real models and the ops agent
 python -m evaluation.golden                 # golden set
@@ -115,15 +117,17 @@ backend/
   ops/                 ops agent, incidents, observability tools, canary
   slack_app/           Slack bot handlers, Block Kit layouts, Bolt wiring, manifest
   evaluation/          red team, chaos, golden set, consistency, judge, models, gate
+    data/              labelled cases, golden decks, gate baseline, benign corpus
+    reports/           committed results of the harnesses
 frontend/              Streamlit UI and PDF export
 deploy/                Prometheus rules, Alertmanager, Grafana dashboards (generated from code)
 docs/                  architecture, decisions, failure modes, runbooks, setup, demo script
 ```
 
-## How this was built
+## Engineering notes
 
-Most of v3 was written with Claude Code and checked by tests, harnesses and live runs; the checks
-caught a dozen real bugs, listed in [docs/claude-code.md](docs/claude-code.md).
+What live testing against real models caught, and how each finding changed the design:
+[docs/engineering-notes.md](docs/engineering-notes.md).
 
 ## Limitations
 

@@ -4,6 +4,7 @@ One file (DB_PATH), WAL mode, one connection guarded by a lock and used from a
 worker thread so the event loop never blocks on disk. SQLite is enough for a
 single API instance; the store interfaces are small so Postgres can replace it.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -99,6 +100,10 @@ class Database:
     async def run(self, fn: Callable[[sqlite3.Connection], T]) -> T:
         return await asyncio.to_thread(self.run_sync, fn)
 
+    def close(self) -> None:
+        with self._lock:
+            self._conn.close()
+
     async def execute(self, sql: str, params: tuple | dict = ()) -> None:
         await self.run(lambda c: c.execute(sql, params))
 
@@ -123,5 +128,7 @@ def get_db() -> Database:
 def reset_db(path: str | None = None) -> Database:
     """Point the process at a new database (tests)."""
     global _db
+    if _db is not None:
+        _db.close()
     _db = Database(path or get_settings().db_path)
     return _db

@@ -3,19 +3,28 @@
 .env.*
 !.env.example
 .streamlit/secrets.toml
+
 # python
 __pycache__/
 *.py[cod]
-venv/
+*.egg-info/
 .venv/
+venv/
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
 # runtime data
 backend/data/
-temp_uploads/
-temp_images/
+*.db
+*.db-wal
+*.db-shm
+
 # os / editors
 .DS_Store
 .idea/
 .vscode/
-.claude/launch.json

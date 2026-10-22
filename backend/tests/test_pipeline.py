@@ -10,8 +10,7 @@ from workflow.graph import AGENTS, compiled_graph
 
 
 async def run(state=None):
-    return await compiled_graph.ainvoke(
-        {"session_id": "t", "idea": "Clinic scheduling on WhatsApp", **(state or {})})
+    return await compiled_graph.ainvoke({"session_id": "t", "idea": "Clinic scheduling on WhatsApp", **(state or {})})
 
 
 async def test_full_run_executes_every_agent(fake_llm):
@@ -78,8 +77,13 @@ async def test_rag_context_reaches_financial_agent(fake_llm):
     from services.retrieval import get_store
 
     store = get_store()
-    await store.index("t", [Chunk("Team of four engineers from IIT.", 1),
-                            Chunk("We project revenue of $2M ARR with burn rate of $40k per month.", 9)])
+    await store.index(
+        "t",
+        [
+            Chunk("Team of four engineers from IIT.", 1),
+            Chunk("We project revenue of $2M ARR with burn rate of $40k per month.", 9),
+        ],
+    )
     await run({"deck_indexed": True})
     fin_prompt = next(p for name, p in fake_llm.prompts if name == "FinancialModel")
     assert "burn rate of $40k" in fin_prompt
@@ -96,8 +100,7 @@ def test_weighted_score_and_thresholds():
 
 def test_checks_catch_known_failure_modes():
     comps = [dict(company="ClinicFlow"), dict(company="X"), dict(company="x")]
-    res = {c.name: c.passed for c in run_checks("competitors", comps,
-                                                  {"venture_profile": {"name": "ClinicFlow"}})}
+    res = {c.name: c.passed for c in run_checks("competitors", comps, {"venture_profile": {"name": "ClinicFlow"}})}
     assert res == {"count_3_to_7": True, "unique_names": False, "not_self": False}
 
     cv = dict(GOOD[S.CustomerValidation], real_pain_or_nice_to_have="nice to have", customer_pain_score=9)

@@ -5,6 +5,7 @@ on-demand list prices; ``:free`` OpenRouter models cost nothing. Unknown models
 fall back to the most expensive known price, so budgets err on the safe side.
 Override with PRICES_JSON='{"provider:model": [in, out]}'.
 """
+
 from __future__ import annotations
 
 import json

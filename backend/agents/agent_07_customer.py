@@ -5,9 +5,9 @@ from schema import CustomerValidation
 def build_prompt(state, ctx):
     return f"""You are a Y Combinator-style product-market-fit expert: blunt and immune to founder optimism.
 
-Startup: {as_json(state['venture_profile'])}
+Startup: {as_json(state["venture_profile"])}
 Customer evidence from the pitch deck (interviews, pilots, traction):
-{ctx.deck or 'none provided'}
+{ctx.deck or "none provided"}
 
 1. Is this real pain or nice to have?
 2. How often does the customer hit this problem?
@@ -17,8 +17,12 @@ Customer evidence from the pitch deck (interviews, pilots, traction):
 
 
 SPEC = AgentSpec(
-    number=7, name="Customer Validation", output_key="customer_validation",
-    schema=CustomerValidation, role="reasoning", build_prompt=build_prompt,
+    number=7,
+    name="Customer Validation",
+    output_key="customer_validation",
+    schema=CustomerValidation,
+    role="reasoning",
+    build_prompt=build_prompt,
     rag_query="customer interviews pilots traction users revenue retention testimonials",
 )
 customer_validation_agent = make_node(SPEC)

@@ -7,6 +7,7 @@
 Without Slack configured everything still happens and is stored; ``GET
 /ops/incidents`` shows it.
 """
+
 from __future__ import annotations
 
 import json
@@ -42,11 +43,22 @@ def diagnosis_blocks(alert_name: str, d: agent.Diagnosis, runbook: str) -> tuple
     url = f"https://github.com/AshmitCajla/VenturesLab/blob/main/docs/runbooks/{runbook}.md"
     text = f"Diagnosis for {alert_name}: {d.likely_cause}"
     blocks = [
-        {"type": "section", "text": {"type": "mrkdwn", "text": f"*🔎 Diagnosis* ({d.confidence} confidence)\n{d.summary}"}},
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"*🔎 Diagnosis* ({d.confidence} confidence)\n{d.summary}"},
+        },
         {"type": "section", "text": {"type": "mrkdwn", "text": f"*Likely cause* (`{d.category}`): {d.likely_cause}"}},
-        {"type": "section", "text": {"type": "mrkdwn", "text": "*Evidence*\n" + "\n".join(f"• {e}" for e in d.evidence)}},
-        {"type": "section", "text": {"type": "mrkdwn", "text": "*Next steps*\n" + "\n".join(
-            f"{i}. {s}" for i, s in enumerate(d.next_steps, 1))}},
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "*Evidence*\n" + "\n".join(f"• {e}" for e in d.evidence)},
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "*Next steps*\n" + "\n".join(f"{i}. {s}" for i, s in enumerate(d.next_steps, 1)),
+            },
+        },
         {"type": "context", "elements": [{"type": "mrkdwn", "text": f"Runbook: <{url}|{runbook}>"}]},
     ]
     return text, blocks
@@ -58,17 +70,29 @@ async def open_incident(alert: dict) -> dict:
         return existing
     name = alert["labels"].get("alertname", "alert")
     now = time.time()
-    await get_db().execute("insert into incidents (id, alert, status, started, labels) values (?, ?, 'firing', ?, ?)",
-                           (iid, name, now, json.dumps({**alert.get("labels", {}), **alert.get("annotations", {})})))
+    await get_db().execute(
+        "insert into incidents (id, alert, status, started, labels) values (?, ?, 'firing', ?, ?)",
+        (iid, name, now, json.dumps({**alert.get("labels", {}), **alert.get("annotations", {})})),
+    )
     channel = get_settings().slack_ops_channel
     slack = None
     if channel:
         sev = alert["labels"].get("severity", "page")
         summary = alert.get("annotations", {}).get("summary", "")
-        ts = await slack_client.post(channel, f"🚨 [{sev}] {name}: {summary}", [
-            {"type": "header", "text": {"type": "plain_text", "text": f"🚨 {name}"}},
-            {"type": "section", "text": {"type": "mrkdwn", "text": f"*Severity:* {sev}\n{summary}\n"
-                                         "_The ops agent is investigating in this thread…_"}}])
+        ts = await slack_client.post(
+            channel,
+            f"🚨 [{sev}] {name}: {summary}",
+            [
+                {"type": "header", "text": {"type": "plain_text", "text": f"🚨 {name}"}},
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Severity:* {sev}\n{summary}\n_The ops agent is investigating in this thread…_",
+                    },
+                },
+            ],
+        )
         slack = {"channel": channel, "ts": ts}
         await get_db().execute("update incidents set slack = ? where id = ?", (json.dumps(slack), iid))
 
@@ -83,8 +107,11 @@ async def open_incident(alert: dict) -> dict:
     except Exception as exc:
         logger.exception("diagnosis failed for %s", iid)
         if slack and slack["ts"]:
-            await slack_client.post(slack["channel"], f"⚠️ Automatic diagnosis failed ({exc}). "
-                                    "Start with docs/runbooks/run-failures.md.", thread_ts=slack["ts"])
+            await slack_client.post(
+                slack["channel"],
+                f"⚠️ Automatic diagnosis failed ({exc}). Start with docs/runbooks/run-failures.md.",
+                thread_ts=slack["ts"],
+            )
     return await _get(iid)
 
 
@@ -99,8 +126,9 @@ async def resolve_incident(alert: dict) -> dict | None:
         md = await agent.postmortem(inc, await agent.gather_evidence())
         await get_db().execute("update incidents set postmortem = ? where id = ?", (md, iid))
         if inc.get("slack") and inc["slack"].get("ts"):
-            await slack_client.post(inc["slack"]["channel"], "✅ Resolved. Draft postmortem:\n" + md[:2800],
-                                    thread_ts=inc["slack"]["ts"])
+            await slack_client.post(
+                inc["slack"]["channel"], "✅ Resolved. Draft postmortem:\n" + md[:2800], thread_ts=inc["slack"]["ts"]
+            )
     except Exception:
         logger.exception("postmortem failed for %s", iid)
     return await _get(iid)

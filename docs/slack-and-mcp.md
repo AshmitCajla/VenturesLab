@@ -1,15 +1,27 @@
 # Slack and MCP setup
 
-## Slack bot
+## Slack bot (free)
 
-1. https://api.slack.com/apps → **Create New App → From an app manifest** → paste
-   `backend/slack_app/manifest.yml`.
-2. **Install to Workspace**; copy the *Bot User OAuth Token* (`xoxb-…`) to `SLACK_BOT_TOKEN`.
-3. **Basic Information → App-Level Tokens → Generate** with scope `connections:write`; copy it
-   (`xapp-…`) to `SLACK_APP_TOKEN`. Socket Mode means no public URL is needed.
-4. Optional: `SLACK_OPS_CHANNEL` (channel id for incidents and ops questions),
-   `SLACK_DIGEST_CHANNEL` (weekly digest), `PUBLIC_UI_URL` (where "Full report" links point).
-5. Restart the API. The log says `Slack bot connected (Socket Mode)`. Invite the bot to a channel.
+Everything here works on Slack's free plan: Socket Mode needs no public URL, server or paid add-on.
+
+1. **Workspace.** Use an existing one where you can install apps, or create a free one at
+   <https://slack.com/get-started#/createnew>.
+2. **App.** <https://api.slack.com/apps> → *Create New App* → *From an app manifest* → pick the
+   workspace → paste `backend/slack_app/manifest.yml` → *Create*.
+3. **Bot token.** *Install App* → *Install to Workspace* → *Allow*. Copy the *Bot User OAuth Token*
+   (`xoxb-…`) into `backend/.env` as `SLACK_BOT_TOKEN`.
+4. **App token.** *Basic Information* → *App-Level Tokens* → *Generate Token and Scopes*, add the scope
+   `connections:write`, generate, and copy it (`xapp-…`) into `backend/.env` as `SLACK_APP_TOKEN`.
+5. **Channels.** In Slack create `#deals` (where decks are dropped) and `#ops-alerts`, and in each run
+   `/invite @VenturesLab`. Copy the ops channel's ID (channel name → *About* → bottom of the panel,
+   `C0…`) into `SLACK_OPS_CHANNEL`, and the same or another channel's ID into `SLACK_DIGEST_CHANNEL`.
+6. **Check.** `make slack-check` verifies the tokens, scopes, Socket Mode and channels, prints the exact
+   fix for anything wrong, and posts a test message to the ops channel.
+7. **Run.** `make api` (or `docker compose up`). The log shows `Slack bot connected (Socket Mode)`.
+   Set `PUBLIC_UI_URL` if the UI is not on `http://localhost:8501`, so "Full report" links work.
+
+Tokens live only in `backend/.env`, which git ignores. Rotate them under *OAuth & Permissions* and
+*Basic Information* if they are ever exposed.
 
 | Do this | You get |
 |---|---|
@@ -52,6 +64,6 @@ Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json
 }
 ```
 
-Then ask Claude: "Analyse ~/Downloads/deck.pdf with VenturesLab and compare it with the last deck from
+Then, in Claude Desktop: "Analyse ~/Downloads/deck.pdf with VenturesLab and compare it with the last deck from
 the same company", or "Using ventureslab-ops, what failed in the last 6 hours?". The servers share the
 API's database (`DB_PATH`), so runs show up everywhere.

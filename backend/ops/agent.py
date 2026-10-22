@@ -7,6 +7,7 @@ Prometheus), then the reasoning model writes a diagnosis that must cite that
 evidence and link a runbook. For free-form questions the fast model first picks
 which tools to call, then the reasoning model answers from their output.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,13 +21,29 @@ from core.telemetry import span
 
 logger = logging.getLogger("ops")
 
-Category = Literal["rate_limit", "llm_timeout", "llm_provider_outage", "web_search", "deck_parsing",
-                   "model_output_format", "cost_budget", "capacity", "code_bug", "unknown"]
+Category = Literal[
+    "rate_limit",
+    "llm_timeout",
+    "llm_provider_outage",
+    "web_search",
+    "deck_parsing",
+    "model_output_format",
+    "cost_budget",
+    "capacity",
+    "code_bug",
+    "unknown",
+]
 
 RUNBOOK_FOR = {
-    "rate_limit": "llm-provider-errors", "llm_timeout": "high-latency", "llm_provider_outage": "llm-provider-errors",
-    "web_search": "web-search-down", "deck_parsing": "deck-parsing-failures", "model_output_format":
-    "llm-provider-errors", "cost_budget": "cost-budget", "capacity": "high-latency", "code_bug": "run-failures",
+    "rate_limit": "llm-provider-errors",
+    "llm_timeout": "high-latency",
+    "llm_provider_outage": "llm-provider-errors",
+    "web_search": "web-search-down",
+    "deck_parsing": "deck-parsing-failures",
+    "model_output_format": "llm-provider-errors",
+    "cost_budget": "cost-budget",
+    "capacity": "high-latency",
+    "code_bug": "run-failures",
     "unknown": "run-failures",
 }
 
@@ -82,7 +99,7 @@ EVIDENCE_PACK = [
     ("recent_runs", {"hours": 2, "status": "failed", "limit": 8}),
     ("recent_logs", {"level": "WARNING", "minutes": 30, "limit": 25}),
     ("model_health", {}),
-    ("query_prometheus", {"promql": 'sum by (provider, model, outcome) (increase(ventureslab_llm_calls_total[15m]))'}),
+    ("query_prometheus", {"promql": "sum by (provider, model, outcome) (increase(ventureslab_llm_calls_total[15m]))"}),
 ]
 
 
@@ -99,10 +116,15 @@ def signals(evidence: dict) -> list[str]:
 
 
 NEXT_STEPS = {
-    "rate_limit": ["Check provider quotas (TPM/TPD) in recent_logs", "Lower MAX_CONCURRENT_JOBS or switch LLM_PROVIDER"],
+    "rate_limit": [
+        "Check provider quotas (TPM/TPD) in recent_logs",
+        "Lower MAX_CONCURRENT_JOBS or switch LLM_PROVIDER",
+    ],
     "llm_timeout": ["Check provider latency in the Ops dashboard", "Lower LLM_TIMEOUT_S so fallbacks start sooner"],
-    "llm_provider_outage": ["Check the provider status page and the model_health canary",
-                            "Make the fallback primary (LLM_PROVIDER) until it recovers"],
+    "llm_provider_outage": [
+        "Check the provider status page and the model_health canary",
+        "Make the fallback primary (LLM_PROVIDER) until it recovers",
+    ],
     "web_search": ["Check egress/DNS from the API host", "Set WEB_SEARCH=0 temporarily"],
     "deck_parsing": ["Find the affected decks in recent_runs", "Check for a PyMuPDF regression"],
     "model_output_format": ["Check whether FAST_MODEL/REASONING_MODEL changed", "Roll back the model change"],
@@ -117,13 +139,17 @@ def rule_based_diagnosis(alert: dict, evidence: dict, reason: str) -> Diagnosis:
     category = top["category"] if top else "unknown"
     return Diagnosis(
         summary=f"{alert.get('labels', {}).get('alertname', 'Alert')} fired; automatic diagnosis from error "
-                f"signatures only (model unavailable: {reason[:120]}).",
-        likely_cause=(f"{top['count']}x {top['signature'][:160]} (agents: {', '.join(top['agents'])})"
-                      if top else "no error signatures in the last hour"),
+        f"signatures only (model unavailable: {reason[:120]}).",
+        likely_cause=(
+            f"{top['count']}x {top['signature'][:160]} (agents: {', '.join(top['agents'])})"
+            if top
+            else "no error signatures in the last hour"
+        ),
         category=category,
         evidence=signals(evidence) or ["no errors recorded in the last hour"],
         confidence="Low",
-        next_steps=NEXT_STEPS.get(category, ["Start with the run-failures runbook"]))
+        next_steps=NEXT_STEPS.get(category, ["Start with the run-failures runbook"]),
+    )
 
 
 async def diagnose(alert: dict, evidence: dict | None = None) -> tuple[Diagnosis, dict]:
@@ -156,28 +182,42 @@ async def ask_ops(question: str) -> OpsAnswer:
     with span("ops.ask"):
         async with _client() as client:
             listing = await client.list_tools()
-            menu = "\n".join(f"- {t.name}{json.dumps(t.input_schema.get('properties', {}))[:200]}: "
-                             f"{(t.description or '').splitlines()[0] if t.description else ''}"
-                             for t in listing.tools)
-            plan, _ = await call_structured("fast", ToolPlan, f"""Pick 1-4 ops tools to answer the question.
+            menu = "\n".join(
+                f"- {t.name}{json.dumps(t.input_schema.get('properties', {}))[:200]}: "
+                f"{(t.description or '').splitlines()[0] if t.description else ''}"
+                for t in listing.tools
+            )
+            plan, _ = await call_structured(
+                "fast",
+                ToolPlan,
+                f"""Pick 1-4 ops tools to answer the question.
 Tools:
 {menu}
 
 Question: {question}
-Time words: "last night" ~ hours=16, "today" ~ hours=24, "this week" ~ hours=168.""", "Ops tool plan", attempts=2)
+Time words: "last night" ~ hours=16, "today" ~ hours=24, "this week" ~ hours=168.""",
+                "Ops tool plan",
+                attempts=2,
+            )
             names = {t.name for t in listing.tools}
             results = {}
             for c in plan.calls[:4]:
                 if c.tool in names:
                     results[f"{c.tool}({json.dumps(c.arguments)})"] = await _call(client, c.tool, c.arguments)
-        answer, _ = await call_structured("reasoning", OpsAnswer, f"""You are the on-call SRE for VenturesLab.
+        answer, _ = await call_structured(
+            "reasoning",
+            OpsAnswer,
+            f"""You are the on-call SRE for VenturesLab.
 Answer the question from the tool output only, with numbers and times. If the data does not answer it,
 say what is missing.
 
 Question: {question}
 
 Tool output:
-{json.dumps(results, default=str)[:14000]}""", "Ops answer", attempts=3)
+{json.dumps(results, default=str)[:14000]}""",
+            "Ops answer",
+            attempts=3,
+        )
         answer.tools_used = list(results)
         return answer
 
