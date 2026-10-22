@@ -1,15 +1,16 @@
 from agents.base import AgentSpec, make_node
 from schema import VentureProfile
+from services.security import fence
 
 
 def build_prompt(state, ctx):
     context = ""
     if state.get("idea"):
-        context += f"Founder's description:\n{state['idea']}\n\n"
+        context += f"Founder's description:\n{fence('founder description', state['idea'])}\n\n"
     if state.get("url_content"):
-        context += f"Website content:\n{state['url_content'][:6000]}\n\n"
+        context += f"Website content:\n{fence('website', state['url_content'][:6000])}\n\n"
     if state.get("deck_summary"):
-        context += f"Pitch deck (opening slides):\n{state['deck_summary']}\n\n"
+        context += f"Pitch deck (opening slides):\n{fence('pitch deck', state['deck_summary'])}\n\n"
     if ctx.deck:
         context += f"Pitch deck (most relevant passages):\n{ctx.deck}\n\n"
     return f"""You are a Principal Startup Analyst at a Tier-1 venture capital firm, known for turning

@@ -11,6 +11,7 @@ class VentureState(TypedDict, total=False):
     url_content: str | None
     deck_indexed: bool
     deck_summary: str | None  # first slides, always given to the profile agent
+    security: dict  # hidden text / injections removed at ingestion (services/security.py)
 
     # agent outputs
     venture_profile: dict
