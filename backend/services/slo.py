@@ -52,11 +52,12 @@ async def symptom_alerts(minutes: float = 15) -> list[dict]:
     search = sum("web search unavailable" in (r["progress"] or "") for r in rows)
     decks = sum("Pitch deck skipped" in (r["warnings"] or "") for r in rows)
     out = []
-    if search / len(rows) >= 0.5:
+    # at least two affected runs: one failed search in one run is noise, not an incident
+    if search >= 2 and search / len(rows) >= 0.5:
         out.append({"alert": "WebSearchDegraded", "severity": "ticket", "window": f"{minutes:.0f}m",
                     "affected_runs": search, "runs": len(rows)})
     absorbed = sum('"recovered_errors"' in (r["progress"] or "") for r in rows)
-    if absorbed / len(rows) >= 0.5:
+    if absorbed >= 2 and absorbed / len(rows) >= 0.5:
         out.append({"alert": "LLMErrorRateHigh", "severity": "ticket", "window": f"{minutes:.0f}m",
                     "affected_runs": absorbed, "runs": len(rows),
                     "note": "runs are completing only thanks to retries and fallbacks"})

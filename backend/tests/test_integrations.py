@@ -227,3 +227,19 @@ def test_metrics_slo_and_guarded_chaos(client):
 
 def test_alert_webhook_accepts_alertmanager_payload(client, slack):
     assert client.post("/ops/alerts", json={"alerts": [ALERT]}).json() == {"accepted": 1}
+
+
+async def test_diagnosis_falls_back_to_rules_when_the_model_is_down(slack):
+    from core import model_router
+    from ops.agent import Diagnosis, diagnose
+    from tests.fakes import FakeLLM
+
+    await runs.save(Run(id="f1", status="failed", error="TimeoutError: chaos: injected LLM timeout",
+                        created=time.time() - 30, finished=time.time()))
+    model_router.set_llm_factory(lambda role: FakeLLM({Diagnosis: [RuntimeError("429 tokens per day")] * 9}))
+    try:
+        diag, _ = await diagnose(ALERT)
+    finally:
+        model_router.set_llm_factory(None)
+    assert diag.category == "llm_timeout" and diag.confidence == "Low"
+    assert "model unavailable" in diag.summary

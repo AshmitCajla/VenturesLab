@@ -45,7 +45,8 @@ Offline numbers use a deterministic fake model and test plumbing and the determi
 | Instruction attacks on a weak venture, off → on | 0/10 → 0/10 (gpt-oss ignored them even undefended; the scoring agent never reads the deck) | live v1 ([report](backend/evaluation/redteam_report_live.md)) |
 | Detector false positives on ordinary pitch copy | 0/30 | `evaluation/benign_lines.txt`, gated in CI |
 | Chaos: fault named by the top error signal | 6/6 | offline ([report](backend/evaluation/chaos_report.md)), gated in CI |
-| Chaos with real models | see [report](backend/evaluation/chaos_report_live.md) | live |
+| Chaos with real models: report delivered under every injected fault | 5/5 experiments; Groq outage served entirely by fallbacks | live ([report](backend/evaluation/chaos_report_live.md)) |
+| Chaos with real models: injected cause is the top error signal | 4/4 faults | live |
 | Inflated TAM claim flagged as conflict | yes ($50B vs $2.8-4.4B, 4 sources) | live |
 
 Hand-labelled golden decks are the missing piece for verdict accuracy; see
@@ -91,7 +92,7 @@ Slack bot and Claude Desktop: [docs/slack-and-mcp.md](docs/slack-and-mcp.md).
 
 ```bash
 cd backend
-pytest -q                                   # 76 offline tests, no keys needed
+pytest -q                                   # 78 offline tests, no keys needed
 python -m evaluation.gate                   # quality gate (also runs in CI on every PR)
 python -m evaluation.redteam --live         # attack success rate with real models
 python -m evaluation.chaos --live --runs 2  # fault injection with real models and the ops agent
