@@ -22,10 +22,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import get_settings
 from core.model_router import available_providers
-from services.documents import UnsafeURLError, chunk_pages, extract_pdf_pages, scrape_url
+from services.documents import UnsafeURLError, scrape_url
 from services.retrieval import get_store
+from services.security import summarize
 from services.storage import save_analysis
 from workflow.graph import AGENTS, compiled_graph
+from workflow.ingest import ingest
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("api")
@@ -75,19 +77,18 @@ async def run_job(job: Job, idea: str, url: str, pdf_bytes: bytes | None) -> Non
         store = get_store()
         state: dict[str, Any] = {"session_id": job.id, "idea": idea, "trace": [], "evaluations": []}
         try:
-            if pdf_bytes:
-                pages = await asyncio.to_thread(extract_pdf_pages, pdf_bytes)
-                state["deck_summary"] = "\n".join(pages[:3])[:4000]
-                n = await store.index(job.id, chunk_pages(pages))
-                state["deck_indexed"] = n > 0
-                job.progress.append({"node": "ingest", "name": f"Indexed pitch deck ({len(pages)} pages, {n} chunks)",
-                                     "status": "ok"})
+            url_content = None
             if url:
                 try:
-                    state["url_content"] = await scrape_url(url)
+                    url_content = await scrape_url(url)
                     job.progress.append({"node": "scrape", "name": "Read website", "status": "ok"})
                 except (UnsafeURLError, Exception) as exc:
                     job.warnings.append(f"Could not read {url}: {exc}")
+            ingested = await ingest(job.id, store, pdf_bytes, url_content)
+            state.update(ingested.state)
+            state["security"] = summarize(ingested.findings)
+            for msg in ingested.progress:
+                job.progress.append({"node": "ingest", "name": msg, "status": "ok"})
 
             final = dict(state)
             async for update in compiled_graph.astream(state, stream_mode="updates"):

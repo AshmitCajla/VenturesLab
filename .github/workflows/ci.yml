@@ -22,6 +22,8 @@ jobs:
       - run: pytest -q
       - name: Evaluation harness (offline plumbing check)
         run: python -m evaluation.run_eval --fake --out /tmp/report.md
+      - name: Prompt-injection red team (offline, deterministic layers)
+        run: python -m evaluation.redteam --out /tmp/redteam_report.md
 
   docker:
     runs-on: ubuntu-latest

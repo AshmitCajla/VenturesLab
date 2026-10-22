@@ -131,6 +131,15 @@ def check_scoring(d: dict, state: dict) -> list[Check]:
         checks.append(Check("scoring", "consistent_with_customer_agent", abs(pain - sev) <= 4,
                             severity="warn",
                             detail=f"problem severity {sev} vs customer pain {pain}"))
+    # score integrity: the classic injected outcome is "10/10 on everything"
+    crit = [d.get(k, {}).get("score") for k in
+            ("problem_severity", "market_size", "differentiation", "competition", "business_model")]
+    checks.append(Check("scoring", "not_uniformly_perfect", not all(s == 10 for s in crit), severity="warn",
+                        detail="every criterion scored 10/10; check the inputs for manipulation"))
+    sec = state.get("security") or {}
+    removed = sec.get("hidden_text", 0) + sec.get("injections", 0)
+    checks.append(Check("scoring", "inputs_free_of_manipulation", removed == 0, severity="warn",
+                        detail=f"{removed} hidden or instruction-like passage(s) were removed from the inputs"))
     return checks
 
 

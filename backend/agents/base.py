@@ -6,6 +6,7 @@ what it returns). ``make_node`` turns a spec into a LangGraph node that:
 1. skips cleanly if an upstream dependency failed,
 2. retrieves the pitch-deck passages relevant to *this* agent (RAG),
 3. optionally runs a live web search,
+   (deck and web text are fenced as untrusted data, see services/security.py)
 4. calls the LLM with a Pydantic schema (structured output + provider fallback),
 5. runs the agent's evaluation checks and, if a hard check fails, retries
    once with the failure fed back to the model (self-correction),
@@ -27,6 +28,7 @@ from pydantic import BaseModel
 from core.model_router import Role, get_structured_llm
 from evaluation.checks import run_checks
 from services.retrieval import format_context, get_store
+from services.security import SECURITY_PREAMBLE, defenses_enabled, fence
 from services.web_research import search_market_data
 
 logger = logging.getLogger("agents")
@@ -75,9 +77,10 @@ async def _gather_context(spec: AgentSpec, state: dict) -> AgentContext:
     ctx = AgentContext()
     if spec.rag_query and state.get("deck_indexed"):
         chunks = await get_store().search(state["session_id"], spec.rag_query, k=4)
-        ctx.deck = format_context(chunks)
+        ctx.deck = fence("pitch-deck excerpts", format_context(chunks))
     if spec.web_query:
-        ctx.web = await search_market_data(spec.web_query(state), max_results=spec.web_results)
+        web = await search_market_data(spec.web_query(state), max_results=spec.web_results)
+        ctx.web = fence("web search results", web)
     return ctx
 
 
@@ -118,6 +121,8 @@ def make_node(spec: AgentSpec) -> Callable[[dict], Awaitable[dict]]:
         try:
             ctx = await _gather_context(spec, state)
             prompt = spec.build_prompt(state, ctx)
+            if defenses_enabled():
+                prompt = SECURITY_PREAMBLE + prompt
             llm = get_structured_llm(spec.role, spec.schema)
 
             checks = []

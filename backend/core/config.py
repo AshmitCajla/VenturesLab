@@ -48,6 +48,8 @@ class Settings:
     max_concurrent_jobs: int = field(default_factory=lambda: int(_env("MAX_CONCURRENT_JOBS", "3")))
     build_threshold: float = field(default_factory=lambda: float(_env("BUILD_THRESHOLD", "0.65")))
     web_search_enabled: bool = field(default_factory=lambda: _env("WEB_SEARCH", "1") == "1")
+    # Prompt-injection defences (services/security.py). 0 only to measure attack success without them.
+    injection_defenses: bool = field(default_factory=lambda: _env("INJECTION_DEFENSES", "1") == "1")
     cors_origins: str = field(default_factory=lambda: _env("CORS_ORIGINS", "*"))
 
 
