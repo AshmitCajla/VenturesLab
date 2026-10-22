@@ -17,5 +17,6 @@ Never repeat the same point in two quadrants."""
 SPEC = AgentSpec(
     number=4, name="SWOT", output_key="swot", schema=SWOTAnalysis, role="reasoning",
     build_prompt=build_prompt,
+    optional=True, description="SWOT: strengths, weaknesses, opportunities, threats. Useful for most ventures; skip only for very early, single-feature ideas.",
 )
 swot_agent = make_node(SPEC)

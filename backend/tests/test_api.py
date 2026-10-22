@@ -32,7 +32,7 @@ def wait(client, job_id, timeout=20):
 
 def test_health(client):
     assert client.get("/health").json()["status"] == "ok"
-    assert len(client.get("/agents").json()) == 12
+    assert len(client.get("/agents").json()) == 13
 
 
 def test_requires_some_input(client):

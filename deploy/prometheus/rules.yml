@@ -1,0 +1,140 @@
+# VenturesLab SLOs and alerts.
+#
+# Three SLOs over a 30-day period (targets mirror core/config.py; services/slo.py computes the
+# same thing from the database for deploys without Prometheus):
+#   success       99% of runs finish (status != failed)
+#   completeness  95% of runs deliver every section (no agent failed)
+#   latency       95% of finished runs take <= 450s   (450 is a bucket boundary of the histogram)
+#
+# Alerts use multi-window, multi-burn-rate rules (Google SRE workbook, ch. 5): page when the
+# budget burns 14.4x too fast over 1h (confirmed over 5m) or 6x over 6h (confirmed over 30m);
+# ticket at 3x over 1d (confirmed over 2h). Experiments from the eval and red-team harnesses
+# are excluded; chaos experiments are not, because they are meant to fire alerts.
+
+groups:
+  - name: ventureslab-sli
+    interval: 30s
+    rules:
+      # ---- success SLI: error ratio = failed / all
+      - record: sli:run_errors:ratio_rate5m
+        expr: sum(rate(ventureslab_runs_total{status="failed",source!~"eval|redteam"}[5m])) / clamp_min(sum(rate(ventureslab_runs_total{source!~"eval|redteam"}[5m])), 1e-9)
+      - record: sli:run_errors:ratio_rate30m
+        expr: sum(rate(ventureslab_runs_total{status="failed",source!~"eval|redteam"}[30m])) / clamp_min(sum(rate(ventureslab_runs_total{source!~"eval|redteam"}[30m])), 1e-9)
+      - record: sli:run_errors:ratio_rate1h
+        expr: sum(rate(ventureslab_runs_total{status="failed",source!~"eval|redteam"}[1h])) / clamp_min(sum(rate(ventureslab_runs_total{source!~"eval|redteam"}[1h])), 1e-9)
+      - record: sli:run_errors:ratio_rate2h
+        expr: sum(rate(ventureslab_runs_total{status="failed",source!~"eval|redteam"}[2h])) / clamp_min(sum(rate(ventureslab_runs_total{source!~"eval|redteam"}[2h])), 1e-9)
+      - record: sli:run_errors:ratio_rate6h
+        expr: sum(rate(ventureslab_runs_total{status="failed",source!~"eval|redteam"}[6h])) / clamp_min(sum(rate(ventureslab_runs_total{source!~"eval|redteam"}[6h])), 1e-9)
+      - record: sli:run_errors:ratio_rate1d
+        expr: sum(rate(ventureslab_runs_total{status="failed",source!~"eval|redteam"}[1d])) / clamp_min(sum(rate(ventureslab_runs_total{source!~"eval|redteam"}[1d])), 1e-9)
+      - record: sli:run_errors:ratio_rate30d
+        expr: sum(increase(ventureslab_runs_total{status="failed",source!~"eval|redteam"}[30d])) / clamp_min(sum(increase(ventureslab_runs_total{source!~"eval|redteam"}[30d])), 1e-9)
+
+      # ---- completeness SLI: (failed + degraded) / all
+      - record: sli:run_incomplete:ratio_rate5m
+        expr: (sum(rate(ventureslab_runs_total{status="failed",source!~"eval|redteam"}[5m])) + sum(rate(ventureslab_runs_degraded_total{source!~"eval|redteam"}[5m]) or vector(0))) / clamp_min(sum(rate(ventureslab_runs_total{source!~"eval|redteam"}[5m])), 1e-9)
+      - record: sli:run_incomplete:ratio_rate1h
+        expr: (sum(rate(ventureslab_runs_total{status="failed",source!~"eval|redteam"}[1h])) + sum(rate(ventureslab_runs_degraded_total{source!~"eval|redteam"}[1h]) or vector(0))) / clamp_min(sum(rate(ventureslab_runs_total{source!~"eval|redteam"}[1h])), 1e-9)
+      - record: sli:run_incomplete:ratio_rate30m
+        expr: (sum(rate(ventureslab_runs_total{status="failed",source!~"eval|redteam"}[30m])) + sum(rate(ventureslab_runs_degraded_total{source!~"eval|redteam"}[30m]) or vector(0))) / clamp_min(sum(rate(ventureslab_runs_total{source!~"eval|redteam"}[30m])), 1e-9)
+      - record: sli:run_incomplete:ratio_rate6h
+        expr: (sum(rate(ventureslab_runs_total{status="failed",source!~"eval|redteam"}[6h])) + sum(rate(ventureslab_runs_degraded_total{source!~"eval|redteam"}[6h]) or vector(0))) / clamp_min(sum(rate(ventureslab_runs_total{source!~"eval|redteam"}[6h])), 1e-9)
+
+      # ---- latency SLI: share of finished runs slower than 450s
+      - record: sli:run_slow:ratio_rate5m
+        expr: 1 - sum(rate(ventureslab_run_duration_seconds_bucket{le="450"}[5m])) / clamp_min(sum(rate(ventureslab_run_duration_seconds_count[5m])), 1e-9)
+      - record: sli:run_slow:ratio_rate1h
+        expr: 1 - sum(rate(ventureslab_run_duration_seconds_bucket{le="450"}[1h])) / clamp_min(sum(rate(ventureslab_run_duration_seconds_count[1h])), 1e-9)
+      - record: sli:run_slow:ratio_rate30m
+        expr: 1 - sum(rate(ventureslab_run_duration_seconds_bucket{le="450"}[30m])) / clamp_min(sum(rate(ventureslab_run_duration_seconds_count[30m])), 1e-9)
+      - record: sli:run_slow:ratio_rate6h
+        expr: 1 - sum(rate(ventureslab_run_duration_seconds_bucket{le="450"}[6h])) / clamp_min(sum(rate(ventureslab_run_duration_seconds_count[6h])), 1e-9)
+
+      # ---- error budget remaining over 30 days (1 = untouched, 0 = spent)
+      - record: slo:run_success:error_budget_remaining
+        expr: 1 - (sli:run_errors:ratio_rate30d / 0.01)
+
+  - name: ventureslab-slo-alerts
+    rules:
+      - alert: RunSuccessBudgetBurn
+        expr: |
+          (sli:run_errors:ratio_rate1h > (14.4 * 0.01) and sli:run_errors:ratio_rate5m > (14.4 * 0.01))
+          or
+          (sli:run_errors:ratio_rate6h > (6 * 0.01) and sli:run_errors:ratio_rate30m > (6 * 0.01))
+        labels: {severity: page, slo: run-success}
+        annotations:
+          summary: "Runs are failing fast enough to exhaust the 30-day error budget (99% success SLO)."
+          runbook: docs/runbooks/run-failures.md
+      - alert: RunSuccessBudgetBurnSlow
+        expr: sli:run_errors:ratio_rate1d > (3 * 0.01) and sli:run_errors:ratio_rate2h > (3 * 0.01)
+        labels: {severity: ticket, slo: run-success}
+        annotations:
+          summary: "Run failures are slowly eating the error budget."
+          runbook: docs/runbooks/run-failures.md
+      - alert: ReportCompletenessBudgetBurn
+        expr: |
+          (sli:run_incomplete:ratio_rate1h > (14.4 * 0.05) and sli:run_incomplete:ratio_rate5m > (14.4 * 0.05))
+          or
+          (sli:run_incomplete:ratio_rate6h > (6 * 0.05) and sli:run_incomplete:ratio_rate30m > (6 * 0.05))
+        labels: {severity: page, slo: report-completeness}
+        annotations:
+          summary: "Too many reports are missing sections (95% complete-report SLO)."
+          runbook: docs/runbooks/llm-provider-errors.md
+      - alert: RunLatencyBudgetBurn
+        expr: |
+          (sli:run_slow:ratio_rate1h > (14.4 * 0.05) and sli:run_slow:ratio_rate5m > (14.4 * 0.05))
+          or
+          (sli:run_slow:ratio_rate6h > (6 * 0.05) and sli:run_slow:ratio_rate30m > (6 * 0.05))
+        labels: {severity: page, slo: run-latency}
+        annotations:
+          summary: "Runs are slower than 450s far more often than the 95% latency SLO allows."
+          runbook: docs/runbooks/high-latency.md
+
+  - name: ventureslab-symptoms
+    rules:
+      - alert: VenturesLabDown
+        expr: up{job="ventureslab"} == 0
+        for: 2m
+        labels: {severity: page}
+        annotations:
+          summary: "The VenturesLab API is not answering scrapes."
+          runbook: docs/runbooks/run-failures.md
+      - alert: LLMErrorRateHigh
+        expr: |
+          sum by (provider) (rate(ventureslab_llm_calls_total{outcome="error"}[10m]))
+            / clamp_min(sum by (provider) (rate(ventureslab_llm_calls_total[10m])), 1e-9) > 0.2
+        for: 5m
+        labels: {severity: ticket}
+        annotations:
+          summary: "More than 20% of calls to {{ $labels.provider }} are failing (fallbacks may be covering)."
+          runbook: docs/runbooks/llm-provider-errors.md
+      - alert: FallbackModelDown
+        expr: min by (role, provider, model) (ventureslab_llm_target_up) == 0
+        for: 30m
+        labels: {severity: ticket}
+        annotations:
+          summary: "Canary: {{ $labels.provider }}:{{ $labels.model }} ({{ $labels.role }}) is not answering; the provider chain has a hole."
+          runbook: docs/runbooks/llm-provider-errors.md
+      - alert: WebSearchDegraded
+        expr: |
+          sum(rate(ventureslab_tool_calls_total{tool="web_search",outcome="error"}[15m]))
+            / clamp_min(sum(rate(ventureslab_tool_calls_total{tool="web_search"}[15m])), 1e-9) > 0.5
+        for: 5m
+        labels: {severity: ticket}
+        annotations:
+          summary: "Most web searches are failing; market and competition sections lack sources."
+          runbook: docs/runbooks/web-search-down.md
+      - alert: DeckParsingFailures
+        expr: increase(ventureslab_deck_parse_failures_total[15m]) >= 2
+        labels: {severity: ticket}
+        annotations:
+          summary: "Several uploaded decks could not be read."
+          runbook: docs/runbooks/deck-parsing-failures.md
+      - alert: RunQueueBacklog
+        expr: ventureslab_runs_queued > 5
+        for: 10m
+        labels: {severity: ticket}
+        annotations:
+          summary: "Runs are waiting for a slot for more than 10 minutes."
+          runbook: docs/runbooks/high-latency.md

@@ -20,10 +20,22 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: ruff check .
       - run: pytest -q
-      - name: Evaluation harness (offline plumbing check)
+      - name: Offline evaluation harness
         run: python -m evaluation.run_eval --fake --out /tmp/report.md
-      - name: Prompt-injection red team (offline, deterministic layers)
-        run: python -m evaluation.redteam --out /tmp/redteam_report.md
+      - name: Quality gate (red team, detector false positives, chaos signals, checks)
+        run: python -m evaluation.gate --summary "$GITHUB_STEP_SUMMARY"
+
+  observability-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: promtool check config and rules
+        run: |
+          docker run --rm -v "$PWD/deploy/prometheus:/etc/prometheus" --entrypoint promtool prom/prometheus:v3.5.0 check config /etc/prometheus/prometheus.yml
+      - name: amtool check-config
+        run: docker run --rm -v "$PWD/deploy/alertmanager:/a" --entrypoint amtool prom/alertmanager:v0.28.1 check-config /a/alertmanager.yml
+      - name: Dashboards are generated from code
+        run: python3 deploy/grafana/build_dashboards.py && git diff --exit-code deploy/grafana/dashboards
 
   docker:
     runs-on: ubuntu-latest

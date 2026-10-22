@@ -149,3 +149,34 @@ SCORING_WEIGHTS = {
     "competition": 0.10,
     "business_model": 0.20,
 }
+
+
+# ------------------------------------------------- claim verification (agent 13)
+ClaimKind = Literal["market_size", "market_growth", "revenue", "growth", "customers", "users",
+                    "funding", "pricing", "other"]
+
+
+class DeckClaim(BaseModel):
+    claim: str = Field(description="the claim in one sentence")
+    kind: ClaimKind
+    value: str = Field(description="the number as stated, e.g. '$50B' or '30% MoM'")
+    slide: int = Field(description="slide number the claim appears on")
+    quote: str = Field(description="exact words copied from that slide that state the claim")
+    search_query: str = Field(description="a short web search (4-8 words) an analyst would use to check this "
+                                          "claim independently, e.g. 'dental practice management software market size'")
+
+
+class ClaimList(BaseModel):
+    claims: list[DeckClaim] = Field(description="up to 8 headline quantitative claims, most important first")
+
+
+class ClaimVerdict(BaseModel):
+    index: int = Field(description="index of the claim in the list")
+    status: Literal["consistent", "conflict", "unverifiable"]
+    external_estimate: str = Field(description="what independent sources say, e.g. '$6-9B (2025)'; empty if none")
+    sources: list[str] = Field(description="URLs from the search results that support the verdict")
+    note: str = Field(description="one sentence explaining the verdict")
+
+
+class VerdictList(BaseModel):
+    verdicts: list[ClaimVerdict]

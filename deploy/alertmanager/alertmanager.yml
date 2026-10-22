@@ -1,0 +1,16 @@
+# Every alert goes to the ops agent, which opens a Slack incident thread and diagnoses it.
+route:
+  receiver: ops-agent
+  group_by: [alertname]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+receivers:
+  - name: ops-agent
+    webhook_configs:
+      - url: http://backend:8000/ops/alerts
+        send_resolved: true
+        http_config:
+          authorization:
+            type: Bearer
+            credentials_file: /tmp/webhook_token   

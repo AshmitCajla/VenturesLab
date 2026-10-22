@@ -2,18 +2,19 @@ import fitz
 import pytest
 
 from evaluation import redteam
-from evaluation.redteam import ATTACKS, EXPLICIT, MARKERS, build_deck
+from evaluation.redteam import ATTACKS, EXPLICIT, MARKERS, VENTURES, build_deck
 from services.security import extract_visible_pages, fence, injection_reason, quarantine
 
-HIDDEN = [a for a in ATTACKS if a.channel == "deck" and a.style]
+HIDDEN = [a for a in ATTACKS if a.channel == "deck" and a.style and not a.style.get("image")]
 
 
 @pytest.mark.parametrize("attack", HIDDEN, ids=[a.id for a in HIDDEN])
 def test_hidden_payloads_never_reach_the_text(attack):
     pages, findings = extract_visible_pages(build_deck(attack))
-    assert MARKERS[0] not in " ".join(pages)
+    assert attack.payload.split()[3] not in " ".join(pages)
     assert any(f.kind == "hidden_text" and f.location == "slide 2" for f in findings)
-    assert "Pet rock owners have nowhere" in pages[1]  # the real slide content survives
+    real = VENTURES[attack.venture]["slides"][1].splitlines()[1]
+    assert real in pages[1]  # the real slide content survives
 
 
 def test_legitimate_low_contrast_text_is_kept():
@@ -77,7 +78,8 @@ def test_api_strips_hidden_payload_and_reports_it(fake_llm):
     assert body["status"] == "done"
     assert body["result"]["security"]["hidden_text"] >= 1
     assert not any(MARKERS[0] in p for _, p in fake_llm.prompts)
-    assert all("SECURITY RULES" in p for _, p in fake_llm.prompts)
+    # every prompt except the screen (which carries its own data-only policy) starts with the rules
+    assert all("SECURITY RULES" in p for name, p in fake_llm.prompts if name != "ScreenResult")
     check = next(e for e in body["result"]["evaluations"] if e["name"] == "inputs_free_of_manipulation")
     assert not check["passed"]
 
@@ -87,5 +89,6 @@ async def test_redteam_defenses_lower_attack_success_rate():
     off, on = redteam.asr(results, "off"), redteam.asr(results, "on")
     assert on[0] < off[0]
     for a in ATTACKS:  # every attack the deterministic layers target is stopped
-        if a.payload == EXPLICIT:
+        if a.payload == EXPLICIT or (a.family == "evidence" and a.channel == "deck"):
             assert not results[a.id]["on"]["succeeded"], a.id
+    assert results["fake_white"]["off"]["succeeded"]  # hidden fake traction works without defences

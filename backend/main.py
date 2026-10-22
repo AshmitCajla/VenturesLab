@@ -1,132 +1,90 @@
 """VenturesLab API.
 
-A full 12-agent run takes minutes, which is longer than most proxies and free
-hosts allow for a single HTTP request. So analysis is a background *job*:
+A full run takes minutes, which is longer than most proxies and free hosts allow
+for a single HTTP request. So analysis is a background *run*:
 
-    POST /analyze          -> 202 {"job_id": ...}
-    GET  /jobs/{job_id}    -> status, per-agent progress, result when done
-    GET  /agents           -> the 12 agents and their order
-    GET  /health
+    POST /analyze                 -> 202 {"run_id": ...}
+    GET  /runs/{id}               -> status, per-agent progress, result when done
+    GET  /runs                    -> history (filter by user)
+    POST /runs/{id}/ask           -> follow-up question answered from that run
+    POST /runs/{id}/feedback      -> thumbs up/down or a correction (feeds the eval set)
+    GET  /runs/{id}/report.md     -> Markdown summary
+    GET  /agents  /health  /metrics  /slo
+    POST /ops/alerts              -> Alertmanager webhook -> ops agent incident
+    GET|POST|DELETE /chaos        -> fault injection (only with CHAOS=1)
+
+``GET /jobs/{id}`` is kept as an alias for v2 clients.
 """
 from __future__ import annotations
 
 import asyncio
-import logging
-import time
 import uuid
-from dataclasses import dataclass, field
-from typing import Any
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
+from core import chaos, telemetry
 from core.config import get_settings
 from core.model_router import available_providers
-from services.documents import UnsafeURLError, scrape_url
+from core.telemetry import FEEDBACK
+from services import qa, slo
+from services.report_text import to_markdown
 from services.retrieval import get_store
-from services.security import summarize
-from services.storage import save_analysis
-from workflow.graph import AGENTS, compiled_graph
-from workflow.ingest import ingest
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-log = logging.getLogger("api")
+from services.runs import Run, runs
+from workflow.graph import AGENTS
+from workflow.runner import execute
 
 settings = get_settings()
-app = FastAPI(title="VenturesLab API", version="2.0.0",
-              description="12-agent venture analysis with RAG, evaluation checks and self-correction.")
+_tasks: set[asyncio.Task] = set()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    telemetry.setup()
+    await runs.mark_interrupted()
+    from ops import canary
+    from slack_app import bolt
+
+    background = [t for t in (await bolt.start(),  # Slack bot + weekly digest, when Slack tokens are set
+                              asyncio.create_task(canary.loop())) if t]
+    yield
+    for t in background:
+        t.cancel()
+
+
+app = FastAPI(title="VenturesLab API", version="3.0.0", lifespan=lifespan,
+              description="Multi-agent venture analysis with evidence checks, injection defences and SRE tooling.")
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","),
                    allow_methods=["*"], allow_headers=["*"])
 
 
-@dataclass
-class Job:
-    id: str
-    status: str = "queued"  # queued | running | done | failed
-    created: float = field(default_factory=time.time)
-    finished: float | None = None
-    progress: list[dict] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
-    result: dict | None = None
-    error: str | None = None
-
-    def public(self) -> dict[str, Any]:
-        return {
-            "job_id": self.id, "status": self.status, "progress": self.progress,
-            "warnings": self.warnings, "error": self.error, "result": self.result,
-            "elapsed_s": round((self.finished or time.time()) - self.created, 1),
-        }
+def start_run(run: Run, pdf_bytes: bytes | None = None, on_update=None) -> None:
+    task = asyncio.create_task(execute(run, pdf_bytes, on_update))
+    _tasks.add(task)  # keep a reference so the task is not garbage-collected
+    task.add_done_callback(_tasks.discard)
 
 
-JOBS: dict[str, Job] = {}
-MAX_JOBS_KEPT = 200
-_slots = asyncio.Semaphore(settings.max_concurrent_jobs)
+def validate_pdf(pdf_bytes: bytes) -> None:
+    if len(pdf_bytes) > settings.max_upload_mb * 1024 * 1024:
+        raise HTTPException(413, f"PDF larger than {settings.max_upload_mb} MB")
+    if not pdf_bytes.startswith(b"%PDF"):
+        raise HTTPException(415, "Only PDF pitch decks are supported")
 
 
-def _summarise_evals(evals: list[dict]) -> dict:
-    total = len(evals)
-    passed = sum(e["passed"] for e in evals)
-    return {"passed": passed, "total": total,
-            "pass_rate": round(passed / total, 3) if total else None,
-            "failed": [e for e in evals if not e["passed"]]}
-
-
-async def run_job(job: Job, idea: str, url: str, pdf_bytes: bytes | None) -> None:
-    async with _slots:
-        job.status = "running"
-        store = get_store()
-        state: dict[str, Any] = {"session_id": job.id, "idea": idea, "trace": [], "evaluations": []}
-        try:
-            url_content = None
-            if url:
-                try:
-                    url_content = await scrape_url(url)
-                    job.progress.append({"node": "scrape", "name": "Read website", "status": "ok"})
-                except (UnsafeURLError, Exception) as exc:
-                    job.warnings.append(f"Could not read {url}: {exc}")
-            ingested = await ingest(job.id, store, pdf_bytes, url_content)
-            state.update(ingested.state)
-            state["security"] = summarize(ingested.findings)
-            for msg in ingested.progress:
-                job.progress.append({"node": "ingest", "name": msg, "status": "ok"})
-
-            final = dict(state)
-            async for update in compiled_graph.astream(state, stream_mode="updates"):
-                for node, delta in update.items():
-                    if not delta:
-                        continue
-                    for key, val in delta.items():
-                        if key in ("trace", "evaluations"):
-                            final[key] = final.get(key, []) + val
-                        else:
-                            final[key] = val
-                    for t in delta.get("trace", []):
-                        job.progress.append({"node": node, "name": t["agent"], **t})
-
-            final["evaluation_summary"] = _summarise_evals(final.get("evaluations", []))
-            final.pop("deck_summary", None)
-            final["storage"] = await save_analysis(job.id, final)
-            job.result, job.status = final, "done"
-        except Exception as exc:
-            log.exception("job %s failed", job.id)
-            job.status, job.error = "failed", f"{type(exc).__name__}: {exc}"
-        finally:
-            job.finished = time.time()
-            await store.drop(job.id)
-
-
-def _evict_old_jobs() -> None:
-    if len(JOBS) <= MAX_JOBS_KEPT:
-        return
-    for jid in sorted(JOBS, key=lambda j: JOBS[j].created)[: len(JOBS) - MAX_JOBS_KEPT]:
-        if JOBS[jid].status in ("done", "failed"):
-            JOBS.pop(jid, None)
+async def _get(run_id: str) -> Run:
+    run = await runs.get(run_id)
+    if not run:
+        raise HTTPException(404, "Unknown run id")
+    return run
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "llm_providers": available_providers(),
-            "vector_store": type(get_store()).__name__, "jobs": len(JOBS)}
+    return {"status": "ok", "llm_providers": available_providers(), "vector_store": type(get_store()).__name__,
+            "active_runs": len(runs.active), "chaos": chaos.active() if chaos.enabled() else None}
 
 
 @app.get("/agents")
@@ -135,28 +93,136 @@ async def agents():
 
 
 @app.post("/analyze", status_code=202)
-async def analyze(idea: str = Form(""), url: str = Form(""), file: UploadFile | None = File(None)):
+async def analyze(idea: str = Form(""), url: str = Form(""), user: str = Form(""),
+                  file: UploadFile | None = File(None)):
     idea, url = idea.strip()[:8000], url.strip()
     pdf_bytes = None
     if file is not None and file.filename:
         pdf_bytes = await file.read()
-        if len(pdf_bytes) > settings.max_upload_mb * 1024 * 1024:
-            raise HTTPException(413, f"PDF larger than {settings.max_upload_mb} MB")
-        if not pdf_bytes.startswith(b"%PDF"):
-            raise HTTPException(415, "Only PDF pitch decks are supported")
+        validate_pdf(pdf_bytes)
     if not (idea or url or pdf_bytes):
         raise HTTPException(422, "Provide at least one of: idea, url, file")
+    run = Run(id=str(uuid.uuid4()), source="api", user_id=user or None,
+              input={"idea": idea, "url": url, "filename": file.filename if pdf_bytes else None})
+    await runs.save(run)
+    start_run(run, pdf_bytes)
+    return {"job_id": run.id, "run_id": run.id, "status": run.status, "poll": f"/runs/{run.id}"}
 
-    job = Job(id=str(uuid.uuid4()))
-    JOBS[job.id] = job
-    _evict_old_jobs()
-    asyncio.create_task(run_job(job, idea, url, pdf_bytes))
-    return {"job_id": job.id, "status": job.status, "poll": f"/jobs/{job.id}"}
+
+@app.get("/runs")
+async def list_runs(user: str | None = None, limit: int = 20, status: str | None = None):
+    return [r.public(include_result=False) for r in await runs.list(user, min(limit, 200), status=status)]
 
 
-@app.get("/jobs/{job_id}")
-async def get_job(job_id: str):
-    job = JOBS.get(job_id)
-    if not job:
-        raise HTTPException(404, "Unknown job id")
-    return job.public()
+@app.get("/runs/{run_id}")
+@app.get("/jobs/{run_id}")
+async def get_run(run_id: str):
+    return (await _get(run_id)).public()
+
+
+@app.get("/runs/{run_id}/report.md", response_class=PlainTextResponse)
+async def report_md(run_id: str):
+    run = await _get(run_id)
+    if run.status != "done":
+        raise HTTPException(409, f"run is {run.status}")
+    return to_markdown(run.result, run.id)
+
+
+@app.post("/runs/{run_id}/ask")
+async def ask(run_id: str, question: str = Body(..., embed=True), history: list[dict] | None = Body(None, embed=True)):
+    run = await _get(run_id)
+    if run.status != "done":
+        raise HTTPException(409, f"run is {run.status}")
+    return (await qa.answer(run.result, question[:2000], history)).model_dump()
+
+
+@app.post("/runs/{run_id}/feedback")
+async def feedback(run_id: str, rating: str = Body(...), user: str | None = Body(None),
+                   section: str | None = Body(None), comment: str | None = Body(None)):
+    if rating not in ("up", "down", "correction"):
+        raise HTTPException(422, "rating must be up, down or correction")
+    await _get(run_id)
+    await runs.add_feedback(run_id, rating, user, section, comment)
+    FEEDBACK.labels(rating).inc()
+    return {"ok": True}
+
+
+@app.post("/digest/send")
+async def send_digest(days: int = 7):
+    from services import digest
+
+    title, blocks = await digest.build(days)
+    ts = await digest.send(days)
+    return {"title": title, "posted": bool(ts), "blocks": blocks}
+
+
+@app.get("/metrics")
+async def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.get("/health/models")
+async def model_health(probe: bool = False):
+    """Fallback canary results; ?probe=true runs a probe now."""
+    from ops import canary
+
+    return await canary.probe_once() if probe else canary.last_results()
+
+
+@app.get("/slo")
+async def slo_status():
+    return await slo.status()
+
+
+@app.post("/ops/alerts")
+async def alerts(payload: dict = Body(...), authorization: str | None = Header(None)):
+    if settings.alert_webhook_token and authorization != f"Bearer {settings.alert_webhook_token}":
+        raise HTTPException(401, "bad token")
+    from ops.incidents import handle_alertmanager
+
+    task = asyncio.create_task(handle_alertmanager(payload))
+    _tasks.add(task)
+    task.add_done_callback(_tasks.discard)
+    return {"accepted": len(payload.get("alerts", []))}
+
+
+@app.get("/ops/incidents")
+async def incidents(limit: int = 20):
+    from ops.incidents import list_incidents
+
+    return await list_incidents(limit)
+
+
+@app.post("/ops/ask")
+async def ops_ask(question: str = Body(..., embed=True)):
+    from ops.agent import ask_ops
+
+    return (await ask_ops(question[:2000])).model_dump()
+
+
+def _chaos_guard():
+    if not chaos.enabled():
+        raise HTTPException(403, "fault injection is disabled (set CHAOS=1)")
+
+
+@app.get("/chaos")
+async def chaos_list():
+    _chaos_guard()
+    return chaos.active()
+
+
+@app.post("/chaos")
+async def chaos_on(name: str = Body(...), probability: float = Body(1.0), duration_s: float = Body(300),
+                   params: dict = Body(default_factory=dict)):
+    _chaos_guard()
+    try:
+        return chaos.activate(name, probability, duration_s, **params).to_dict()
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.delete("/chaos")
+async def chaos_off(name: str | None = None):
+    _chaos_guard()
+    chaos.clear(name)
+    return chaos.active()

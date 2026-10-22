@@ -12,6 +12,17 @@ pymupdf>=1.24
 ddgs>=9.0
 fastembed>=0.5
 numpy>=1.26
+# observability
+prometheus-client>=0.21
+opentelemetry-api>=1.30
+opentelemetry-sdk>=1.30
+opentelemetry-exporter-otlp-proto-http>=1.30
+# MCP servers (VenturesLab, research tools, ops tools)
+mcp>=2.3,<3
+# Slack bot (Socket Mode)
+slack-bolt>=1.21
+slack-sdk>=3.33
+aiohttp>=3.10
 # optional integrations (enabled when their env vars are set)
 qdrant-client>=1.12
 supabase>=2.0

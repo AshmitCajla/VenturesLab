@@ -1,0 +1,7 @@
+{
+  "redteam_instruction_asr_on": [2, 11],
+  "redteam_evidence_asr_on": [1, 5],
+  "benign_false_positives": 0,
+  "chaos_signal_accuracy": 1.0,
+  "offline_check_pass_rate": 1.0
+}

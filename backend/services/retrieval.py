@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from dataclasses import replace
 from functools import lru_cache
 from typing import Protocol
 
@@ -46,7 +47,7 @@ class InMemoryStore:
         q = np.asarray((await asyncio.to_thread(get_embedder().embed, [query]))[0], dtype=np.float32)
         scores = matrix @ q
         top = np.argsort(-scores)[:k]
-        return [chunks[i] for i in top]
+        return [replace(chunks[i], score=float(scores[i])) for i in top]
 
     async def drop(self, session_id: str) -> None:
         self._data.pop(session_id, None)
@@ -100,7 +101,7 @@ class QdrantStore:
             self.COLLECTION, query=q, limit=k,
             query_filter=Filter(must=[FieldCondition(key="session_id", match=MatchValue(value=session_id))]),
         )
-        return [Chunk(text=p.payload["text"], page=p.payload.get("page")) for p in res.points]
+        return [Chunk(text=p.payload["text"], page=p.payload.get("page"), score=p.score) for p in res.points]
 
     async def drop(self, session_id: str) -> None:
         from qdrant_client.models import FieldCondition, Filter, FilterSelector, MatchValue

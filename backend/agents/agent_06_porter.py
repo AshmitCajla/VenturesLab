@@ -18,5 +18,6 @@ where the forces genuinely differ."""
 SPEC = AgentSpec(
     number=6, name="Porter's Five Forces", output_key="porter", schema=PorterAnalysis,
     role="reasoning", build_prompt=build_prompt,
+    optional=True, description="Porter's Five Forces: industry structure and bargaining power. Valuable when there are established incumbents, suppliers or buyers with power.",
 )
 porter_agent = make_node(SPEC)
