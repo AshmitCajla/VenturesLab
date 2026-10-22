@@ -4,13 +4,33 @@ from pathlib import Path
 
 # Tests never touch the network or real accounts. Setting these *before* config loads means a
 # developer's backend/.env (which load_dotenv would read) cannot leak keys or Slack tokens in.
-for key in ("GROQ_API_KEY", "OPENROUTER_API_KEY", "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN", "SLACK_OPS_CHANNEL",
-            "SLACK_DIGEST_CHANNEL", "OTEL_EXPORTER_OTLP_ENDPOINT", "QDRANT_URL", "SUPABASE_URL",
-            "ALERT_WEBHOOK_TOKEN"):
+for key in (
+    "GROQ_API_KEY",
+    "OPENROUTER_API_KEY",
+    "SLACK_BOT_TOKEN",
+    "SLACK_APP_TOKEN",
+    "SLACK_OPS_CHANNEL",
+    "SLACK_DIGEST_CHANNEL",
+    "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "QDRANT_URL",
+    "SUPABASE_URL",
+    "ALERT_WEBHOOK_TOKEN",
+):
     os.environ[key] = ""
-os.environ.update({"EMBEDDINGS": "hash", "WEB_SEARCH": "0", "RESULTS_DIR": "/tmp/ventureslab-test-results",
-                   "DB_PATH": ":memory:", "LOG_DIR": "", "VISION_MODEL": "off", "CHAOS": "0", "CANARY_INTERVAL_S": "0",
-                   "PROMETHEUS_URL": "http://127.0.0.1:9", "JAEGER_URL": "http://127.0.0.1:9"})
+os.environ.update(
+    {
+        "EMBEDDINGS": "hash",
+        "WEB_SEARCH": "0",
+        "RESULTS_DIR": "/tmp/ventureslab-test-results",
+        "DB_PATH": ":memory:",
+        "LOG_DIR": "",
+        "VISION_MODEL": "off",
+        "CHAOS": "0",
+        "CANARY_INTERVAL_S": "0",
+        "PROMETHEUS_URL": "http://127.0.0.1:9",
+        "JAEGER_URL": "http://127.0.0.1:9",
+    }
+)
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest  # noqa: E402
@@ -44,11 +64,13 @@ def fake_llm():
 @pytest.fixture
 def settings(monkeypatch):
     """settings(KEY="value", ...) sets env vars and reloads Settings; undone after the test."""
+
     def apply(**env):
         for k, v in env.items():
             monkeypatch.setenv(k, v)
         get_settings.cache_clear()
         return get_settings()
+
     yield apply
     monkeypatch.undo()
     get_settings.cache_clear()

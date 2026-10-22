@@ -4,6 +4,7 @@ Started by the API when SLACK_BOT_TOKEN and SLACK_APP_TOKEN are set, so runs,
 metrics and the ops agent all live in one process. App manifest:
 ``slack_app/manifest.yml``.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -40,6 +41,7 @@ def build_app():
         pass  # handled through the message event, which carries the channel and thread
 
     for action in ("rerun", "feedback_up", "feedback_down", "correct"):
+
         @app.action(action)
         async def _action(ack, body):
             await ack()

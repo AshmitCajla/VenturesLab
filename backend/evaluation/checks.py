@@ -13,6 +13,7 @@ failure modes that actually showed up while building this system:
 ``error`` checks trigger one automatic self-correction retry of the agent
 with the failure message fed back; ``warn`` checks are only reported.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -44,22 +45,28 @@ def _nonempty(text: str, min_chars: int = 15) -> bool:
 def check_profile(d: dict, state: dict) -> list[Check]:
     a = "venture_profile"
     return [
-        Check(a, "fields_substantive",
-              all(_nonempty(d.get(k, "")) for k in ("problem", "solution", "customer")),
-              detail="problem/solution/customer must each be a real sentence"),
-        Check(a, "customer_is_specific",
-              _norm(d.get("customer", "")) not in {"everyone", "all people", "anyone", "general public"},
-              detail="target customer is too broad"),
+        Check(
+            a,
+            "fields_substantive",
+            all(_nonempty(d.get(k, "")) for k in ("problem", "solution", "customer")),
+            detail="problem/solution/customer must each be a real sentence",
+        ),
+        Check(
+            a,
+            "customer_is_specific",
+            _norm(d.get("customer", "")) not in {"everyone", "all people", "anyone", "general public"},
+            detail="target customer is too broad",
+        ),
     ]
 
 
 def check_market(d: dict, state: dict) -> list[Check]:
     a = "market_analysis"
     return [
-        Check(a, "has_growth_drivers", len(d.get("growth_drivers", [])) >= 2,
-              detail="need at least two growth drivers"),
-        Check(a, "cites_sources", len(d.get("sources", [])) >= 1, severity="warn",
-              detail="no web sources cited"),
+        Check(
+            a, "has_growth_drivers", len(d.get("growth_drivers", [])) >= 2, detail="need at least two growth drivers"
+        ),
+        Check(a, "cites_sources", len(d.get("sources", [])) >= 1, severity="warn", detail="no web sources cited"),
     ]
 
 
@@ -70,8 +77,7 @@ def check_competitors(items: list, state: dict) -> list[Check]:
     return [
         Check(a, "count_3_to_7", 3 <= len(items) <= 7, detail=f"got {len(items)} competitors"),
         Check(a, "unique_names", len(set(names)) == len(names), detail="duplicate competitors"),
-        Check(a, "not_self", not own or own not in names,
-              detail="the venture itself was listed as a competitor"),
+        Check(a, "not_self", not own or own not in names, detail="the venture itself was listed as a competitor"),
     ]
 
 
@@ -80,45 +86,82 @@ def check_swot(d: dict, state: dict) -> list[Check]:
     quads = ("strengths", "weaknesses", "opportunities", "threats")
     all_items = [_norm(x) for q in quads for x in d.get(q, [])]
     return [
-        Check(a, "all_quadrants_filled", all(len(d.get(q, [])) >= 2 for q in quads),
-              detail="each quadrant needs at least two points"),
-        Check(a, "no_repeated_points", len(set(all_items)) == len(all_items),
-              detail="the same point appears in more than one quadrant"),
+        Check(
+            a,
+            "all_quadrants_filled",
+            all(len(d.get(q, [])) >= 2 for q in quads),
+            detail="each quadrant needs at least two points",
+        ),
+        Check(
+            a,
+            "no_repeated_points",
+            len(set(all_items)) == len(all_items),
+            detail="the same point appears in more than one quadrant",
+        ),
     ]
 
 
 def check_pestle(d: dict, state: dict) -> list[Check]:
     keys = ("political", "economic", "social", "technological", "legal", "environmental")
-    return [Check("pestle", "all_factors_substantive", all(_nonempty(d.get(k, "")) for k in keys),
-                  detail="every PESTLE factor needs a real explanation")]
+    return [
+        Check(
+            "pestle",
+            "all_factors_substantive",
+            all(_nonempty(d.get(k, "")) for k in keys),
+            detail="every PESTLE factor needs a real explanation",
+        )
+    ]
 
 
 def check_porter(d: dict, state: dict) -> list[Check]:
     scores = [f.get("score") for f in d.values() if isinstance(f, dict)]
     return [
         Check("porter", "five_forces_present", len(scores) == 5),
-        Check("porter", "not_all_identical", len(set(scores)) > 1, severity="warn",
-              detail="all five forces got the same score"),
+        Check(
+            "porter",
+            "not_all_identical",
+            len(set(scores)) > 1,
+            severity="warn",
+            detail="all five forces got the same score",
+        ),
     ]
 
 
 def check_customer(d: dict, state: dict) -> list[Check]:
     nice = d.get("real_pain_or_nice_to_have") == "nice to have"
     pain = d.get("customer_pain_score", 0)
-    return [Check("customer_validation", "pain_label_matches_score",
-                  not (nice and pain >= 8) and not (not nice and pain <= 3),
-                  detail=f"label '{d.get('real_pain_or_nice_to_have')}' contradicts pain score {pain}")]
+    return [
+        Check(
+            "customer_validation",
+            "pain_label_matches_score",
+            not (nice and pain >= 8) and not (not nice and pain <= 3),
+            detail=f"label '{d.get('real_pain_or_nice_to_have')}' contradicts pain score {pain}",
+        )
+    ]
 
 
 def check_market_size(d: dict, state: dict) -> list[Check]:
     tam, sam, som = d.get("tam_usd", 0), d.get("sam_usd", 0), d.get("som_usd", 0)
     return [
-        Check("market_size", "tam_ge_sam_ge_som", tam >= sam >= som > 0,
-              detail=f"TAM={tam:,.0f} SAM={sam:,.0f} SOM={som:,.0f}"),
-        Check("market_size", "som_share_plausible", tam == 0 or som / tam <= 0.2, severity="warn",
-              detail="SOM is more than 20% of TAM"),
-        Check("market_size", "shows_assumptions", len(d.get("assumptions", [])) >= 3,
-              detail="needs at least three explicit assumptions"),
+        Check(
+            "market_size",
+            "tam_ge_sam_ge_som",
+            tam >= sam >= som > 0,
+            detail=f"TAM={tam:,.0f} SAM={sam:,.0f} SOM={som:,.0f}",
+        ),
+        Check(
+            "market_size",
+            "som_share_plausible",
+            tam == 0 or som / tam <= 0.2,
+            severity="warn",
+            detail="SOM is more than 20% of TAM",
+        ),
+        Check(
+            "market_size",
+            "shows_assumptions",
+            len(d.get("assumptions", [])) >= 3,
+            detail="needs at least three explicit assumptions",
+        ),
     ]
 
 
@@ -128,24 +171,51 @@ def check_scoring(d: dict, state: dict) -> list[Check]:
     pain = cv.get("customer_pain_score")
     sev = d.get("problem_severity", {}).get("score")
     if isinstance(pain, int) and isinstance(sev, int):
-        checks.append(Check("scoring", "consistent_with_customer_agent", abs(pain - sev) <= 4,
-                            severity="warn",
-                            detail=f"problem severity {sev} vs customer pain {pain}"))
+        checks.append(
+            Check(
+                "scoring",
+                "consistent_with_customer_agent",
+                abs(pain - sev) <= 4,
+                severity="warn",
+                detail=f"problem severity {sev} vs customer pain {pain}",
+            )
+        )
     # score integrity: the classic injected outcome is "10/10 on everything"
-    crit = [d.get(k, {}).get("score") for k in
-            ("problem_severity", "market_size", "differentiation", "competition", "business_model")]
-    checks.append(Check("scoring", "not_uniformly_perfect", not all(s == 10 for s in crit), severity="warn",
-                        detail="every criterion scored 10/10; check the inputs for manipulation"))
+    crit = [
+        d.get(k, {}).get("score")
+        for k in ("problem_severity", "market_size", "differentiation", "competition", "business_model")
+    ]
+    checks.append(
+        Check(
+            "scoring",
+            "not_uniformly_perfect",
+            not all(s == 10 for s in crit),
+            severity="warn",
+            detail="every criterion scored 10/10; check the inputs for manipulation",
+        )
+    )
     sec = state.get("security") or {}
     removed = sec.get("hidden_text", 0) + sec.get("injections", 0)
-    checks.append(Check("scoring", "inputs_free_of_manipulation", removed == 0, severity="warn",
-                        detail=f"{removed} hidden or instruction-like passage(s) were removed from the inputs"))
+    checks.append(
+        Check(
+            "scoring",
+            "inputs_free_of_manipulation",
+            removed == 0,
+            severity="warn",
+            detail=f"{removed} hidden or instruction-like passage(s) were removed from the inputs",
+        )
+    )
     return checks
 
 
 def check_roadmap(d: dict, state: dict) -> list[Check]:
-    return [Check("roadmap", "phases_have_content",
-                  bool(d.get("days_30", {}).get("features")) and bool(d.get("months_12", {}).get("kpis")))]
+    return [
+        Check(
+            "roadmap",
+            "phases_have_content",
+            bool(d.get("days_30", {}).get("features")) and bool(d.get("months_12", {}).get("kpis")),
+        )
+    ]
 
 
 def check_gtm(d: dict, state: dict) -> list[Check]:
@@ -157,8 +227,13 @@ def check_financials(d: dict, state: dict) -> list[Check]:
     som = state.get("market_size", {}).get("som_usd") or 0
     return [
         Check("financial_model", "revenue_grows", y5 >= y1, detail=f"Y1={y1:,.0f} Y5={y5:,.0f}"),
-        Check("financial_model", "y5_within_som", not som or y5 <= som * 1.5, severity="warn",
-              detail=f"Y5 revenue {y5:,.0f} exceeds obtainable market {som:,.0f}"),
+        Check(
+            "financial_model",
+            "y5_within_som",
+            not som or y5 <= som * 1.5,
+            severity="warn",
+            detail=f"Y5 revenue {y5:,.0f} exceeds obtainable market {som:,.0f}",
+        ),
     ]
 
 

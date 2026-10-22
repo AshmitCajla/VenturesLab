@@ -5,6 +5,7 @@ refused before it reaches the tool, which limits what a manipulated agent could
 do. Calls go over MCP to the research server (in-process transport, so no
 network hop), are traced and counted, and return the tool's JSON result.
 """
+
 from __future__ import annotations
 
 import json

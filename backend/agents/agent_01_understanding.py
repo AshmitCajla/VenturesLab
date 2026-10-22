@@ -29,8 +29,13 @@ Use only the context above. Where it is silent, say so instead of inventing fact
 
 
 SPEC = AgentSpec(
-    number=1, name="Venture Understanding", output_key="venture_profile",
-    schema=VentureProfile, role="fast", build_prompt=build_prompt, requires=(),
+    number=1,
+    name="Venture Understanding",
+    output_key="venture_profile",
+    schema=VentureProfile,
+    role="fast",
+    build_prompt=build_prompt,
+    requires=(),
     rag_query="problem solution product customer business model traction team",
 )
 venture_understanding_agent = make_node(SPEC)

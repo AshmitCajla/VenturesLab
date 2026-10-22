@@ -1,10 +1,10 @@
 """Quality gate for pull requests: block merges that make measured quality worse.
 
 Runs the deterministic, key-free evaluations and compares them with
-``evaluation/baseline.json``:
+``evaluation/data/baseline.json``:
 
 * red-team attack success with defences on (instruction and evidence families),
-* false positives of the injection detector on ``benign_lines.txt``,
+* false positives of the injection detector on ``data/benign_lines.txt``,
 * chaos experiments: does the top error signal name the injected fault?
 * offline pipeline: share of quality checks passing.
 
@@ -13,6 +13,7 @@ summary). ``--update-baseline`` accepts the current numbers, for intended change
 Live-model quality (golden set, consistency) runs in the manual "live-eval" workflow,
 because it needs API keys and costs money.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -25,12 +26,17 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
+from evaluation.paths import DATA  # noqa: E402
+
 
 def benign_false_positives() -> list[str]:
     from services.security import injection_reason
 
-    lines = [ln.strip() for ln in (HERE / "benign_lines.txt").read_text().splitlines()
-             if ln.strip() and not ln.startswith("#")]
+    lines = [
+        ln.strip()
+        for ln in (DATA / "benign_lines.txt").read_text().splitlines()
+        if ln.strip() and not ln.startswith("#")
+    ]
     return [ln for ln in lines if injection_reason(ln)]
 
 
@@ -55,14 +61,16 @@ async def measure() -> dict:
 
     from evaluation.run_eval import evaluate as offline_eval
 
-    cases = json.loads((HERE / "cases.json").read_text())
+    cases = json.loads((DATA / "cases.json").read_text())
     res = await offline_eval(cases)
     passed = sum(r["checks_passed"] for r in res["cases"])
     total = sum(r["checks_total"] for r in res["cases"])
     fps = benign_false_positives()
     return {
-        "redteam_instruction_asr_on": list(instr), "redteam_evidence_asr_on": list(evid),
-        "benign_false_positives": len(fps), "benign_false_positive_lines": fps,
+        "redteam_instruction_asr_on": list(instr),
+        "redteam_evidence_asr_on": list(evid),
+        "benign_false_positives": len(fps),
+        "benign_false_positive_lines": fps,
         "chaos_signal_accuracy": round(sum(r["signal_ok"] for r in rows) / len(rows), 3),
         "chaos_failed_experiments": [r["experiment"] for r in rows if not r["signal_ok"]],
         "offline_check_pass_rate": round(passed / total, 3) if total else None,
@@ -80,8 +88,10 @@ def compare(now: dict, base: dict) -> list[str]:
     if now["chaos_signal_accuracy"] < base["chaos_signal_accuracy"]:
         problems.append(f"chaos diagnosis signals regressed: {now['chaos_failed_experiments']}")
     if (now["offline_check_pass_rate"] or 0) < base["offline_check_pass_rate"]:
-        problems.append(f"offline quality-check pass rate {now['offline_check_pass_rate']} "
-                        f"< baseline {base['offline_check_pass_rate']}")
+        problems.append(
+            f"offline quality-check pass rate {now['offline_check_pass_rate']} "
+            f"< baseline {base['offline_check_pass_rate']}"
+        )
     return problems
 
 
@@ -95,7 +105,7 @@ def main() -> None:
     os.environ.setdefault("EMBEDDINGS", "hash")
     os.environ.setdefault("VISION_MODEL", "off")
     now = asyncio.run(measure())
-    base_path = HERE / "baseline.json"
+    base_path = DATA / "baseline.json"
     base = json.loads(base_path.read_text())
     if args.update_baseline:
         base_path.write_text(json.dumps({k: now[k] for k in base}, indent=1) + "\n")
@@ -108,7 +118,7 @@ def main() -> None:
     md = "\n".join(lines) + "\n"
     print(md)
     if args.summary:
-        with open(args.summary, "a") as f:
+        with Path(args.summary).open("a") as f:
             f.write(md)
     sys.exit(1 if problems else 0)
 

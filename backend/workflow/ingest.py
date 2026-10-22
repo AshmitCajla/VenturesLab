@@ -9,6 +9,7 @@ exactly the same defences:
 With INJECTION_DEFENSES=0 the raw extracted text is passed through, which is the
 "before" condition when measuring attack success rate.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -51,8 +52,9 @@ def _extract(pdf_bytes: bytes) -> tuple[list[str], list[Finding]]:
         raise DeckUnreadable(f"the PDF could not be read ({type(exc).__name__}: {exc})") from exc
 
 
-async def ingest(session_id: str, store: VectorStore, pdf_bytes: bytes | None = None,
-                 url_content: str | None = None) -> Ingested:
+async def ingest(
+    session_id: str, store: VectorStore, pdf_bytes: bytes | None = None, url_content: str | None = None
+) -> Ingested:
     out = Ingested()
     docs: dict[str, str] = {}
     n_pages = 0

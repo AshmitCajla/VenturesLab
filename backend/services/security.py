@@ -22,6 +22,7 @@ with ``evaluation/redteam.py``:
 The score itself stays a fixed weighted sum computed in code (agent 9), so a
 manipulated model can shift criterion ratings but cannot change the formula.
 """
+
 from __future__ import annotations
 
 import logging
@@ -35,16 +36,16 @@ from pydantic import BaseModel, Field
 from core.config import get_settings
 
 MIN_FONT_PT = 4.0
-MIN_ALPHA = 32          # of 255; fainter text is treated as invisible
-RENDER_ZOOM = 2.0       # 144 dpi is enough to resolve the strokes of 6pt text
-COLOR_TOL = 80.0        # RGB distance at which a pixel counts as "the text colour"
+MIN_ALPHA = 32  # of 255; fainter text is treated as invisible
+RENDER_ZOOM = 2.0  # 144 dpi is enough to resolve the strokes of 6pt text
+COLOR_TOL = 80.0  # RGB distance at which a pixel counts as "the text colour"
 
 
 @dataclass
 class Finding:
-    kind: str           # hidden_text | injection
-    location: str       # "slide 3", "website"
-    reason: str         # why it was flagged
+    kind: str  # hidden_text | injection
+    location: str  # "slide 3", "website"
+    reason: str  # why it was flagged
     excerpt: str
 
     def to_dict(self) -> dict:
@@ -67,9 +68,9 @@ def _is_rendered(span: dict, pixels: np.ndarray, zoom: float) -> bool:
     (the background between strokes). White-on-white text has no differing
     pixels; text under a shape has no pixels of its colour at all.
     """
-    x0, y0, x1, y1 = (int(round(v * zoom)) for v in span["bbox"])
+    x0, y0, x1, y1 = (round(v * zoom) for v in span["bbox"])
     h, w = pixels.shape[:2]
-    region = pixels[max(0, y0):min(h, y1), max(0, x0):min(w, x1)].reshape(-1, 3)
+    region = pixels[max(0, y0) : min(h, y1), max(0, x0) : min(w, x1)].reshape(-1, 3)
     if region.size == 0:
         return False
     bg = np.median(region, axis=0)
@@ -81,13 +82,13 @@ def _is_rendered(span: dict, pixels: np.ndarray, zoom: float) -> bool:
 
 
 def _hidden_reason(span: dict, page_rect, pixels: np.ndarray) -> str | None:
-    import fitz
+    import pymupdf
 
     if span.get("alpha", 255) < MIN_ALPHA:
         return "transparent or invisible text"
     if span["size"] < MIN_FONT_PT:
         return f"{span['size']:.1f}pt text"
-    if not fitz.Rect(span["bbox"]).intersects(page_rect):
+    if not pymupdf.Rect(span["bbox"]).intersects(page_rect):
         return "text outside the page"
     if not _is_rendered(span, pixels, RENDER_ZOOM):
         return "text not visible on the rendered page (same colour as background, or covered)"
@@ -96,18 +97,19 @@ def _hidden_reason(span: dict, page_rect, pixels: np.ndarray) -> str | None:
 
 def extract_visible_pages(pdf_bytes: bytes) -> tuple[list[str], list[Finding]]:
     """Text a human reader would see on each page, plus what was hidden."""
-    import fitz
+    import pymupdf
 
     pages: list[str] = []
     findings: list[Finding] = []
-    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
         for page_no, page in enumerate(doc, start=1):
-            pix = page.get_pixmap(matrix=fitz.Matrix(RENDER_ZOOM, RENDER_ZOOM), alpha=False,
-                                  colorspace=fitz.csRGB)
+            pix = page.get_pixmap(
+                matrix=pymupdf.Matrix(RENDER_ZOOM, RENDER_ZOOM), alpha=False, colorspace=pymupdf.csRGB
+            )
             pixels = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, 3).astype(np.float32)
             lines: list[str] = []
             # unclipped, so text placed off the page is seen (and reported)
-            for block in page.get_text("dict", clip=fitz.INFINITE_RECT())["blocks"]:
+            for block in page.get_text("dict", clip=pymupdf.INFINITE_RECT())["blocks"]:
                 for line in block.get("lines", []):
                     kept = []
                     for span in line["spans"]:
@@ -116,8 +118,9 @@ def extract_visible_pages(pdf_bytes: bytes) -> tuple[list[str], list[Finding]]:
                             continue
                         reason = _hidden_reason(span, page.rect, pixels)
                         if reason:
-                            findings.append(Finding("hidden_text", f"slide {page_no}", reason,
-                                                    span["text"].strip()[:200]))
+                            findings.append(
+                                Finding("hidden_text", f"slide {page_no}", reason, span["text"].strip()[:200])
+                            )
                         else:
                             kept.append(span["text"])
                     text = "".join(kept).strip()
@@ -141,27 +144,53 @@ def _merge_adjacent(findings: list[Finding]) -> list[Finding]:
 
 # ------------------------------------------------ 2. instructions aimed at the model
 _INJECTION_PATTERNS = [
-    (r"\b(ignore|disregard|forget)\b.{0,40}\b(previous|prior|above|earlier|all|any|your)\b.{0,20}"
-     r"\b(instructions?|prompts?|directives?)\b", "override instruction"),
-    (r"\b(ignore|disregard|forget)\s+(the\s+|all\s+|any\s+|your\s+)?(previous|prior|above|earlier)\s+"
-     r"(rules|guidelines|context)\b", "override instruction"),
+    (
+        r"\b(ignore|disregard|forget)\b.{0,40}\b(previous|prior|above|earlier|all|any|your)\b.{0,20}"
+        r"\b(instructions?|prompts?|directives?)\b",
+        "override instruction",
+    ),
+    (
+        r"\b(ignore|disregard|forget)\s+(the\s+|all\s+|any\s+|your\s+)?(previous|prior|above|earlier)\s+"
+        r"(rules|guidelines|context)\b",
+        "override instruction",
+    ),
     (r"\bnew (instructions?|directives?)\b\s*:", "new instructions"),
-    (r"\b(note|message|instructions?|guidance)\s+(to|for)\s+(the\s+)?(ai|llm|model|assistant|chatbot|"
-     r"language model|gpt|claude|analyst bot|automated (reviewer|analyst))\b", "message addressed to the model"),
-    (r"\b(you are|you're|act as|pretend to be)\s+(now\s+)?(an?\s+)?(ai|llm|language model|"
-     r"assistant|chatbot)\b", "role reassignment"),
-    (r"^\s*(system|assistant)\s*(prompt|message)?\s*:|^\s*developer\s+(prompt|message)\s*:|"
-     r"<\|?(im_start|system|endoftext)\|?>|"
-     r"\[/?(inst|sys)\]", "fake role tag"),
-    (r"\b(rate|score|grade|rank|mark|evaluate)\s+(this|the|every|each|all)\b.{0,60}"
-     r"\b(10\s*/\s*10|10 out of 10|ten out of ten|perfect score|maximum score|"
-     r"highest (possible )?(score|rating)|full marks)", "dictates the score"),
-    (r"\b(give|assign|award|output|return)\b.{0,40}\b(score|rating|grade)\s+of\s+(9|10|ten|nine)\b",
-     "dictates the score"),
-    (r"\b(recommendation|verdict|decision)\s+(should|must)\s+be\b.{0,15}\b(build|invest|yes)\b|"
-     r"\b(recommend|output|return)\s+[\"']?build[\"']?\b", "dictates the verdict"),
-    (r"\bdo not\s+(mention|reveal|flag|report|disclose)\b.{0,40}\b(this|these|instructions?|weakness|"
-     r"risk|competitor)", "asks the model to hide something"),
+    (
+        r"\b(note|message|instructions?|guidance)\s+(to|for)\s+(the\s+)?(ai|llm|model|assistant|chatbot|"
+        r"language model|gpt|claude|analyst bot|automated (reviewer|analyst))\b",
+        "message addressed to the model",
+    ),
+    (
+        r"\b(you are|you're|act as|pretend to be)\s+(now\s+)?(an?\s+)?(ai|llm|language model|"
+        r"assistant|chatbot)\b",
+        "role reassignment",
+    ),
+    (
+        r"^\s*(system|assistant)\s*(prompt|message)?\s*:|^\s*developer\s+(prompt|message)\s*:|"
+        r"<\|?(im_start|system|endoftext)\|?>|"
+        r"\[/?(inst|sys)\]",
+        "fake role tag",
+    ),
+    (
+        r"\b(rate|score|grade|rank|mark|evaluate)\s+(this|the|every|each|all)\b.{0,60}"
+        r"\b(10\s*/\s*10|10 out of 10|ten out of ten|perfect score|maximum score|"
+        r"highest (possible )?(score|rating)|full marks)",
+        "dictates the score",
+    ),
+    (
+        r"\b(give|assign|award|output|return)\b.{0,40}\b(score|rating|grade)\s+of\s+(9|10|ten|nine)\b",
+        "dictates the score",
+    ),
+    (
+        r"\b(recommendation|verdict|decision)\s+(should|must)\s+be\b.{0,15}\b(build|invest|yes)\b|"
+        r"\b(recommend|output|return)\s+[\"']?build[\"']?\b",
+        "dictates the verdict",
+    ),
+    (
+        r"\bdo not\s+(mention|reveal|flag|report|disclose)\b.{0,40}\b(this|these|instructions?|weakness|"
+        r"risk|competitor)",
+        "asks the model to hide something",
+    ),
 ]
 _INJECTION_RE = [(re.compile(p, re.IGNORECASE), why) for p, why in _INJECTION_PATTERNS]
 
@@ -226,15 +255,15 @@ async def semantic_screen(docs: dict[str, str]) -> tuple[dict[str, str], list[Fi
     """
     from core.llm import call_structured  # avoid an import cycle at module load
 
-    lines = [(loc, i, ln) for loc, text in docs.items()
-             for i, ln in enumerate(text.splitlines()) if ln.strip()]
+    lines = [(loc, i, ln) for loc, text in docs.items() for i, ln in enumerate(text.splitlines()) if ln.strip()]
     flagged: dict[tuple[str, int], str] = {}
     try:
         for b in range(0, len(lines), SCREEN_BATCH):
-            batch = lines[b:b + SCREEN_BATCH]
+            batch = lines[b : b + SCREEN_BATCH]
             body = "\n".join(f"[{n}] {ln[:400]}" for n, (_, _, ln) in enumerate(batch))
-            res, _ = await call_structured("fast", ScreenResult, f"{SCREEN_POLICY}\n\n{fence('lines', body)}",
-                                           "Semantic screen", attempts=2)
+            res, _ = await call_structured(
+                "fast", ScreenResult, f"{SCREEN_POLICY}\n\n{fence('lines', body)}", "Semantic screen", attempts=2
+            )
             for v in res.violations:
                 if 0 <= v.line < len(batch):
                     loc, i, _ = batch[v.line]
@@ -247,8 +276,9 @@ async def semantic_screen(docs: dict[str, str]) -> tuple[dict[str, str], list[Fi
         kept = []
         for i, ln in enumerate(text.splitlines()):
             if (loc, i) in flagged:
-                findings.append(Finding("injection", loc, f"semantic screen: {flagged[(loc, i)][:120]}",
-                                        ln.strip()[:300]))
+                findings.append(
+                    Finding("injection", loc, f"semantic screen: {flagged[(loc, i)][:120]}", ln.strip()[:300])
+                )
             else:
                 kept.append(ln)
         cleaned[loc] = "\n".join(kept)

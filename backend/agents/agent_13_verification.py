@@ -13,6 +13,7 @@ does three things, two of them in code:
    sources put it at $6-9B"). Internal metrics such as revenue cannot be checked
    from outside and are labelled so rather than guessed.
 """
+
 from __future__ import annotations
 
 import logging
@@ -51,9 +52,9 @@ def extract_prompt(state: dict) -> str:
     return f"""You are a due-diligence analyst. List the headline quantitative claims this pitch deck makes
 (market size, market growth, revenue, growth rate, customers, users, funding, pricing).
 
-Startup: {as_json(state.get('venture_profile', {}))}
+Startup: {as_json(state.get("venture_profile", {}))}
 Deck text by slide:
-{fence('pitch deck', deck[:12000])}
+{fence("pitch deck", deck[:12000])}
 
 For each claim give the slide number, copy the exact words from that slide in `quote`, and write a
 short search query that would find independent figures for it. Only include claims that are actually
@@ -61,12 +62,14 @@ in the deck."""
 
 
 def verify_prompt(state: dict, claims: list[dict], research: dict[int, str]) -> str:
-    items = "\n\n".join(f"Claim {i}: {claims[i]['claim']} (stated value: {claims[i]['value']})\n"
-                        f"Search results:\n{research[i]}" for i in research)
+    items = "\n\n".join(
+        f"Claim {i}: {claims[i]['claim']} (stated value: {claims[i]['value']})\nSearch results:\n{research[i]}"
+        for i in research
+    )
     return f"""You are a skeptical due-diligence analyst. For each claim, compare the stated value with
 what independent sources in its search results say.
 
-Startup: {as_json(state.get('venture_profile', {}))}
+Startup: {as_json(state.get("venture_profile", {}))}
 
 {items}
 
@@ -103,15 +106,20 @@ async def verification_node(state: dict) -> dict:
                 d = c.model_dump()
                 page = pages[c.slide - 1] if 1 <= c.slide <= len(pages) else ""
                 d["citation"] = "verified" if citation_found(c.quote, page) else "citation_not_found"
-                d.update(status="unverifiable", external_estimate="", sources=[],
-                         note="internal metric; cannot be checked against public sources")
+                d.update(
+                    status="unverifiable",
+                    external_estimate="",
+                    sources=[],
+                    note="internal metric; cannot be checked against public sources",
+                )
                 claims.append(d)
 
             research, web_sources = {}, []
             for i, d in enumerate(claims):
                 if d["kind"] in EXTERNAL_KINDS and d["citation"] == "verified" and len(research) < MAX_SEARCHES:
-                    res = await tools.call(spec.name, spec.tools, "web_search",
-                                           {"query": _query(state, d), "max_results": 5})
+                    res = await tools.call(
+                        spec.name, spec.tools, "web_search", {"query": _query(state, d), "max_results": 5}
+                    )
                     text, sources = res["text"], res["sources"]
                     if res.get("error"):
                         trace.setdefault("warnings", []).append(res["error"])
@@ -122,14 +130,19 @@ async def verification_node(state: dict) -> dict:
                         d["note"] = "no independent sources found"
             models = [f"{u1.provider}:{u1.model}"]
             if research:
-                verdicts, u2 = await call_structured("reasoning", VerdictList,
-                                                     pre + verify_prompt(state, claims, research), spec.name)
+                verdicts, u2 = await call_structured(
+                    "reasoning", VerdictList, pre + verify_prompt(state, claims, research), spec.name
+                )
                 models.append(f"{u2.provider}:{u2.model}")
                 allowed = {s["url"] for s in web_sources}
                 for v in verdicts.verdicts:
                     if v.index in research:
-                        claims[v.index].update(status=v.status, external_estimate=v.external_estimate,
-                                               sources=[u for u in v.sources if u in allowed], note=v.note)
+                        claims[v.index].update(
+                            status=v.status,
+                            external_estimate=v.external_estimate,
+                            sources=[u for u in v.sources if u in allowed],
+                            note=v.note,
+                        )
             for d in claims:
                 if d["citation"] == "citation_not_found":
                     d.update(status="unverifiable", note="the quoted words are not on the cited slide")
@@ -140,22 +153,36 @@ async def verification_node(state: dict) -> dict:
             trace.update(ms=round(elapsed * 1000), models=sorted(set(models)), checks_passed=0, checks_total=0)
             AGENT_RUNS.labels(spec.name, "ok").inc()
             AGENT_DURATION.labels(spec.name).observe(elapsed)
-            evidence = {"claims": {"deck": [{"slide": d["slide"], "excerpt": d["quote"][:160]} for d in claims],
-                                   "web": web_sources}}
+            evidence = {
+                "claims": {
+                    "deck": [{"slide": d["slide"], "excerpt": d["quote"][:160]} for d in claims],
+                    "web": web_sources,
+                }
+            }
             return {"claims": {"claims": claims, "summary": summary}, "trace": [trace], "evidence": evidence}
         except Exception as exc:
             logger.exception("%s failed", spec.name)
-            trace.update(status="error", error=f"{type(exc).__name__}: {exc}"[:500],
-                         ms=round((time.perf_counter() - started) * 1000))
+            trace.update(
+                status="error",
+                error=f"{type(exc).__name__}: {exc}"[:500],
+                ms=round((time.perf_counter() - started) * 1000),
+            )
             AGENT_RUNS.labels(spec.name, "error").inc()
             return {"claims": {"error": trace["error"]}, "trace": [trace]}
 
 
 SPEC = AgentSpec(
-    number=13, name="Claim Verification", output_key="claims", schema=ClaimList, role="fast",
-    build_prompt=lambda s, c: "", optional=True, est_cost_usd=0.004, extra_tools=("web_search",),
+    number=13,
+    name="Claim Verification",
+    output_key="claims",
+    schema=ClaimList,
+    role="fast",
+    build_prompt=lambda s, c: "",
+    optional=True,
+    est_cost_usd=0.004,
+    extra_tools=("web_search",),
     description="Extracts the deck's headline numbers, checks each citation, cross-checks market claims "
-                "against independent sources. Only useful when a pitch deck was provided.",
+    "against independent sources. Only useful when a pitch deck was provided.",
 )
 claim_verification_agent = verification_node
 claim_verification_agent.spec = SPEC  # type: ignore[attr-defined]

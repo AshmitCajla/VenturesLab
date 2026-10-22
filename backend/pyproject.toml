@@ -1,0 +1,39 @@
+[project]
+name = "ventureslab"
+version = "3.0.0"
+description = "Multi-agent venture analysis with evidence checks, injection defences and SRE tooling."
+readme = "../README.md"
+license = { file = "../LICENSE" }
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-include = ["../frontend/*.py", "../deploy/**/*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "C4", "PIE", "RET", "PTH", "RUF"]
+ignore = [
+    "E501",    # line length is the formatter's job
+    "B008",    # FastAPI's Form()/File()/Body() defaults
+    "C408",    # dict(...) keeps test fixtures readable
+    "RUF001",  # security.py uses lookalike characters on purpose
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agents", "core", "evaluation", "mcp_servers", "ops", "schema", "services", "slack_app",
+                     "tests", "workflow", "main", "report"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.coverage.run]
+source = ["."]
+omit = ["tests/*", "evaluation/*"]
+
+[tool.coverage.report]
+skip_empty = true
+show_missing = false

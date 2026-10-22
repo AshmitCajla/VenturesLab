@@ -1,4 +1,5 @@
 """Structured outputs every agent must return (enforced via tool-calling)."""
+
 from __future__ import annotations
 
 from typing import Literal
@@ -152,8 +153,9 @@ SCORING_WEIGHTS = {
 
 
 # ------------------------------------------------- claim verification (agent 13)
-ClaimKind = Literal["market_size", "market_growth", "revenue", "growth", "customers", "users",
-                    "funding", "pricing", "other"]
+ClaimKind = Literal[
+    "market_size", "market_growth", "revenue", "growth", "customers", "users", "funding", "pricing", "other"
+]
 
 
 class DeckClaim(BaseModel):
@@ -162,8 +164,10 @@ class DeckClaim(BaseModel):
     value: str = Field(description="the number as stated, e.g. '$50B' or '30% MoM'")
     slide: int = Field(description="slide number the claim appears on")
     quote: str = Field(description="exact words copied from that slide that state the claim")
-    search_query: str = Field(description="a short web search (4-8 words) an analyst would use to check this "
-                                          "claim independently, e.g. 'dental practice management software market size'")
+    search_query: str = Field(
+        description="a short web search (4-8 words) an analyst would use to check this "
+        "claim independently, e.g. 'dental practice management software market size'"
+    )
 
 
 class ClaimList(BaseModel):

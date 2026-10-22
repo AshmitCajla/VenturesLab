@@ -10,10 +10,23 @@ These are heuristics for "how much should a reader lean on this section", not
 calibrated probabilities; ``evaluation/consistency.py`` measures how stable
 sections actually are.
 """
+
 from __future__ import annotations
 
-SECTIONS = ("venture_profile", "market_analysis", "competitors", "customer_validation", "swot",
-            "pestle", "porter", "market_size", "scoring", "roadmap", "gtm_strategy", "financial_model")
+SECTIONS = (
+    "venture_profile",
+    "market_analysis",
+    "competitors",
+    "customer_validation",
+    "swot",
+    "pestle",
+    "porter",
+    "market_size",
+    "scoring",
+    "roadmap",
+    "gtm_strategy",
+    "financial_model",
+)
 WEB_SECTIONS = {"market_analysis", "competitors"}
 DECK_RELEVANCE_MIN = 0.35
 

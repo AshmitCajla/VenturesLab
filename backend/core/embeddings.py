@@ -7,6 +7,7 @@ pulled in >1.5 GB of dependencies and could not run on free hosting tiers.
 ``EMBEDDINGS=hash`` switches to a dependency-free hashing embedder that is
 deterministic and good enough for tests and very small deployments.
 """
+
 from __future__ import annotations
 
 import hashlib

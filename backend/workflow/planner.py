@@ -11,6 +11,7 @@ model from the venture profile, then constrained by rules in code:
 
 The decision and its reasons are stored in ``state["plan"]`` and shown in the report.
 """
+
 from __future__ import annotations
 
 import logging
@@ -26,8 +27,25 @@ from services.security import SECURITY_PREAMBLE, defenses_enabled, fence
 
 logger = logging.getLogger("planner")
 
-REGULATED = ("health", "medical", "clinic", "pharma", "bank", "fintech", "lending", "insurance",
-             "payments", "crypto", "energy", "education", "child", "drone", "defense", "legal", "food")
+REGULATED = (
+    "health",
+    "medical",
+    "clinic",
+    "pharma",
+    "bank",
+    "fintech",
+    "lending",
+    "insurance",
+    "payments",
+    "crypto",
+    "energy",
+    "education",
+    "child",
+    "drone",
+    "defense",
+    "legal",
+    "food",
+)
 
 
 class PlanChoice(BaseModel):
@@ -49,16 +67,19 @@ def optional_agents() -> dict[str, object]:
 def _prompt(state: dict, options: dict) -> str:
     menu = "\n".join(f"- {k}: {spec.description}" for k, spec in options.items())
     pre = SECURITY_PREAMBLE if defenses_enabled() else ""
-    return pre + f"""You plan a venture-capital analysis. Core analyses always run. Decide which optional
+    return (
+        pre
+        + f"""You plan a venture-capital analysis. Core analyses always run. Decide which optional
 analyses are worth their cost for THIS venture. Skip ones that would add little.
 
-Venture: {fence('venture profile', as_json(state.get('venture_profile', {})))}
-Pitch deck provided: {bool(state.get('deck_pages'))}
+Venture: {fence("venture profile", as_json(state.get("venture_profile", {})))}
+Pitch deck provided: {bool(state.get("deck_pages"))}
 
 Optional analyses:
 {menu}
 
 Return one choice per optional analysis."""
+    )
 
 
 async def plan_node(state: dict) -> dict:

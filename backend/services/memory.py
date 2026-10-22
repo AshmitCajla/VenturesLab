@@ -6,6 +6,7 @@
   to that company's previous run and the report shows what changed: score,
   verdict, criterion ratings, headline claims and market size.
 """
+
 from __future__ import annotations
 
 import json
@@ -42,7 +43,8 @@ def snapshot(state: dict) -> dict:
             key, n = f"{base}#{n}", n + 1
         keyed[key] = c["value"]
     return {
-        "score": state.get("score"), "recommendation": state.get("recommendation"),
+        "score": state.get("score"),
+        "recommendation": state.get("recommendation"),
         "deck_hash": state.get("deck_hash"),
         "criteria": {k: v.get("score") for k, v in sc.items() if isinstance(v, dict) and "score" in v},
         "claims": keyed,
@@ -63,16 +65,24 @@ async def remember(run_id: str, state: dict) -> None:
     await get_db().execute(
         "insert or replace into memory (run_id, company, company_key, created, embedding, profile, snapshot) "
         "values (?, ?, ?, ?, ?, ?, ?)",
-        (run_id, p.get("name"), company_key(p.get("name", "")), time.time(), v.tobytes(),
-         json.dumps(p), json.dumps(snapshot(state), default=str)))
+        (
+            run_id,
+            p.get("name"),
+            company_key(p.get("name", "")),
+            time.time(),
+            v.tobytes(),
+            json.dumps(p),
+            json.dumps(snapshot(state), default=str),
+        ),
+    )
 
 
 async def similar(run_id: str, profile: dict, k: int = 3) -> list[dict]:
     if not profile or "error" in profile:
         return []
     rows = await get_db().fetchall(
-        "select run_id, company, company_key, created, embedding, snapshot from memory where run_id != ?",
-        (run_id,))
+        "select run_id, company, company_key, created, embedding, snapshot from memory where run_id != ?", (run_id,)
+    )
     if not rows:
         return []
     q = _vec(_profile_text(profile))
@@ -84,9 +94,16 @@ async def similar(run_id: str, profile: dict, k: int = 3) -> list[dict]:
         sim = float(np.frombuffer(r["embedding"], dtype=np.float32) @ q)
         if sim >= SIMILARITY_MIN:
             snap = json.loads(r["snapshot"])
-            out.append({"run_id": r["run_id"], "company": r["company"], "similarity": round(sim, 3),
-                        "score": snap.get("score"), "recommendation": snap.get("recommendation"),
-                        "created": r["created"]})
+            out.append(
+                {
+                    "run_id": r["run_id"],
+                    "company": r["company"],
+                    "similarity": round(sim, 3),
+                    "score": snap.get("score"),
+                    "recommendation": snap.get("recommendation"),
+                    "created": r["created"],
+                }
+            )
     return sorted(out, key=lambda x: -x["similarity"])[:k]
 
 
@@ -96,7 +113,9 @@ async def previous_version(run_id: str, profile: dict) -> dict | None:
         return None
     return await get_db().fetchone(
         "select run_id, created, snapshot from memory where company_key = ? and run_id != ? "
-        "order by created desc limit 1", (key, run_id))
+        "order by created desc limit 1",
+        (key, run_id),
+    )
 
 
 def diff(old: dict, new: dict) -> dict:
@@ -110,8 +129,11 @@ def diff(old: dict, new: dict) -> dict:
         changes["recommendation"] = {"from": old.get("recommendation"), "to": new.get("recommendation")}
     if old.get("stage") != new.get("stage"):
         changes["stage"] = {"from": old.get("stage"), "to": new.get("stage")}
-    crit = {k: {"from": old["criteria"].get(k), "to": v} for k, v in new.get("criteria", {}).items()
-            if old.get("criteria", {}).get(k) != v}
+    crit = {
+        k: {"from": old["criteria"].get(k), "to": v}
+        for k, v in new.get("criteria", {}).items()
+        if old.get("criteria", {}).get(k) != v
+    }
     if crit:
         changes["criteria"] = crit
     oc, nc = old.get("claims", {}), new.get("claims", {})
@@ -132,6 +154,9 @@ async def compare_with_history(run_id: str, state: dict) -> dict:
     out: dict = {"similar": await similar(run_id, profile)}
     prev = await previous_version(run_id, profile)
     if prev:
-        out["previous_version"] = {"run_id": prev["run_id"], "created": prev["created"],
-                                   "changes": diff(json.loads(prev["snapshot"]), snapshot(state))}
+        out["previous_version"] = {
+            "run_id": prev["run_id"],
+            "created": prev["created"],
+            "changes": diff(json.loads(prev["snapshot"]), snapshot(state)),
+        }
     return out

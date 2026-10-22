@@ -4,6 +4,7 @@ Replaces the v2 in-memory job dict, which lost everything on restart and so coul
 not support history, the Slack App Home, the weekly digest or SLO reporting.
 Active runs are also kept in memory so polling does not hit the disk.
 """
+
 from __future__ import annotations
 
 import json
@@ -19,8 +20,8 @@ JSON_FIELDS = ("input", "progress", "warnings", "result", "slack")
 @dataclass
 class Run:
     id: str
-    status: str = "queued"           # queued | running | done | failed
-    source: str = "api"              # api | slack | mcp | eval | chaos
+    status: str = "queued"  # queued | running | done | failed
+    source: str = "api"  # api | slack | mcp | eval | chaos
     user_id: str | None = None
     title: str | None = None
     created: float = field(default_factory=time.time)
@@ -41,10 +42,21 @@ class Run:
         return round((self.finished or time.time()) - self.created, 1)
 
     def public(self, include_result: bool = True) -> dict[str, Any]:
-        out = {"job_id": self.id, "run_id": self.id, "status": self.status, "source": self.source,
-               "title": self.title, "score": self.score, "recommendation": self.recommendation,
-               "cost_usd": self.cost_usd, "progress": self.progress, "warnings": self.warnings,
-               "error": self.error, "elapsed_s": self.elapsed_s, "created": self.created}
+        out = {
+            "job_id": self.id,
+            "run_id": self.id,
+            "status": self.status,
+            "source": self.source,
+            "title": self.title,
+            "score": self.score,
+            "recommendation": self.recommendation,
+            "cost_usd": self.cost_usd,
+            "progress": self.progress,
+            "warnings": self.warnings,
+            "error": self.error,
+            "elapsed_s": self.elapsed_s,
+            "created": self.created,
+        }
         if include_result:
             out["result"] = self.result
         return out
@@ -73,8 +85,7 @@ class RunStore:
     async def save(self, run: Run) -> None:
         row = run.row()
         cols = ", ".join(row)
-        await get_db().execute(
-            f"insert or replace into runs ({cols}) values ({', '.join(':' + k for k in row)})", row)
+        await get_db().execute(f"insert or replace into runs ({cols}) values ({', '.join(':' + k for k in row)})", row)
         if run.status in ("queued", "running"):
             self.active[run.id] = run
         else:
@@ -86,8 +97,14 @@ class RunStore:
         row = await get_db().fetchone("select * from runs where id = ?", (run_id,))
         return Run.from_row(row) if row else None
 
-    async def list(self, user_id: str | None = None, limit: int = 20, since: float | None = None,
-                   status: str | None = None, with_result: bool = False) -> list[Run]:
+    async def list(
+        self,
+        user_id: str | None = None,
+        limit: int = 20,
+        since: float | None = None,
+        status: str | None = None,
+        with_result: bool = False,
+    ) -> list[Run]:
         cols = "*" if with_result else ", ".join(c for c in Run.__dataclass_fields__ if c != "result")
         where, params = [], []
         if user_id:
@@ -108,29 +125,44 @@ class RunStore:
         rows = await get_db().fetchall("select id from runs where status in ('queued', 'running')")
         await get_db().execute(
             "update runs set status = 'failed', error = 'interrupted by a server restart', finished = ? "
-            "where status in ('queued', 'running')", (time.time(),))
+            "where status in ('queued', 'running')",
+            (time.time(),),
+        )
         return len(rows)
 
     async def stats(self, since: float) -> dict:
         rows = await get_db().fetchall(
             "select status, count(*) n, avg(cost_usd) cost, avg(finished - created) secs from runs "
-            "where created >= ? group by status", (since,))
+            "where created >= ? group by status",
+            (since,),
+        )
         fb = await get_db().fetchall(
-            "select rating, count(*) n from feedback where created >= ? group by rating", (since,))
-        return {"by_status": {r["status"]: {"runs": r["n"], "avg_cost_usd": r["cost"], "avg_s": r["secs"]}
-                              for r in rows},
-                "feedback": {r["rating"]: r["n"] for r in fb}}
+            "select rating, count(*) n from feedback where created >= ? group by rating", (since,)
+        )
+        return {
+            "by_status": {r["status"]: {"runs": r["n"], "avg_cost_usd": r["cost"], "avg_s": r["secs"]} for r in rows},
+            "feedback": {r["rating"]: r["n"] for r in fb},
+        }
 
-    async def add_feedback(self, run_id: str, rating: str, user_id: str | None = None,
-                           section: str | None = None, comment: str | None = None) -> None:
+    async def add_feedback(
+        self,
+        run_id: str,
+        rating: str,
+        user_id: str | None = None,
+        section: str | None = None,
+        comment: str | None = None,
+    ) -> None:
         await get_db().execute(
             "insert into feedback (run_id, user_id, rating, section, comment, created) values (?, ?, ?, ?, ?, ?)",
-            (run_id, user_id, rating, section, comment, time.time()))
+            (run_id, user_id, rating, section, comment, time.time()),
+        )
 
     async def corrections(self, limit: int = 200) -> list[dict]:
         return await get_db().fetchall(
             "select f.*, r.title, r.input from feedback f join runs r on r.id = f.run_id "
-            "where f.rating = 'correction' order by f.created desc limit ?", (limit,))
+            "where f.rating = 'correction' order by f.created desc limit ?",
+            (limit,),
+        )
 
 
 runs = RunStore()

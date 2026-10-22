@@ -18,7 +18,7 @@ Status legend: ✅ built and tested · 🟡 built, needs a human or a live measu
 - ✅ Red-team corpus: instruction attacks (9 hiding techniques incl. image) and fabricated-evidence attacks.
 - ✅ Offline ASR in CI and gated: instruction 9/11 → 2/11, evidence 5/5 → 1/5 (simulated gullible model).
 - 🟡 Live ASR v1: 0/10 → 0/10 (instruction payloads did not move a weak venture). Live v2 numbers for the
-  fabricated-evidence family: see `backend/evaluation/redteam_report_live.md`; rerun with more repeats
+  fabricated-evidence family: see `backend/evaluation/reports/redteam_report_live.md`; rerun with more repeats
   when the Groq daily budget allows.
 
 ## 3. A smarter agent system ✅
@@ -50,18 +50,18 @@ Status legend: ✅ built and tested · 🟡 built, needs a human or a live measu
 ## 8. Chaos testing ✅
 - ✅ Faults: LLM timeouts, provider down, search down, corrupt decks, request bursts.
 - ✅ Offline: every fault degrades gracefully and the top error signal names it (6/6, gated in CI).
-- ✅ Live: see `backend/evaluation/chaos_report_live.md`.
+- ✅ Live: see `backend/evaluation/reports/chaos_report_live.md`.
 
 ## 9. Evaluation you can trust 🟡
 - ✅ Golden-set runner with constructed decks (labels true by construction).
-- 🟡 Hand-labelled public decks: add 20-30 to `backend/evaluation/golden/` (instructions in its README).
+- 🟡 Hand-labelled public decks: add 20-30 to `backend/evaluation/data/golden/` (instructions in its README).
 - ✅ Consistency runner (score sd, verdict flip rate, per-criterion sd).
 - ✅ LLM judge that refuses to be trusted below 20 human labels / kappa 0.6; corrections loop.
 - ✅ PR quality gate; manual live-eval workflow; cost-vs-quality comparison across model configs.
 
 ## 10. Showcase 🟡
 - ✅ One-command setup (`docker compose up --build`), docs (architecture, decisions, failure modes,
-  Claude Code usage, Slack/MCP setup), demo script.
+  engineering notes, Slack/MCP setup), demo script.
 - 🟡 Record the 2-minute video (`docs/demo-script.md`); deploy a demo workspace; write-up with live numbers.
 
 ## Constraints

@@ -3,6 +3,7 @@
 Two runs on similar ventures ask similar questions; a cache hit saves a slow,
 flaky network call and keeps runs reproducible within the TTL.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -31,4 +32,5 @@ async def get(namespace: str, payload: Any) -> Any | None:
 async def put(namespace: str, payload: Any, value: Any, ttl_s: float = 7 * 86400) -> None:
     await get_db().execute(
         "insert or replace into cache(key, value, expires) values (?, ?, ?)",
-        (_key(namespace, payload), json.dumps(value, default=str), time.time() + ttl_s))
+        (_key(namespace, payload), json.dumps(value, default=str), time.time() + ttl_s),
+    )

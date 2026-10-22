@@ -15,6 +15,7 @@ for a single HTTP request. So analysis is a background *run*:
 
 ``GET /jobs/{id}`` is kept as an alias for v2 clients.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -48,17 +49,28 @@ async def lifespan(app: FastAPI):
     from ops import canary
     from slack_app import bolt
 
-    background = [t for t in (await bolt.start(),  # Slack bot + weekly digest, when Slack tokens are set
-                              asyncio.create_task(canary.loop())) if t]
+    background = [
+        t
+        for t in (
+            await bolt.start(),  # Slack bot + weekly digest, when Slack tokens are set
+            asyncio.create_task(canary.loop()),
+        )
+        if t
+    ]
     yield
     for t in background:
         t.cancel()
 
 
-app = FastAPI(title="VenturesLab API", version="3.0.0", lifespan=lifespan,
-              description="Multi-agent venture analysis with evidence checks, injection defences and SRE tooling.")
-app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","),
-                   allow_methods=["*"], allow_headers=["*"])
+app = FastAPI(
+    title="VenturesLab API",
+    version="3.0.0",
+    lifespan=lifespan,
+    description="Multi-agent venture analysis with evidence checks, injection defences and SRE tooling.",
+)
+app.add_middleware(
+    CORSMiddleware, allow_origins=settings.cors_origins.split(","), allow_methods=["*"], allow_headers=["*"]
+)
 
 
 def start_run(run: Run, pdf_bytes: bytes | None = None, on_update=None) -> None:
@@ -83,8 +95,13 @@ async def _get(run_id: str) -> Run:
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "llm_providers": available_providers(), "vector_store": type(get_store()).__name__,
-            "active_runs": len(runs.active), "chaos": chaos.active() if chaos.enabled() else None}
+    return {
+        "status": "ok",
+        "llm_providers": available_providers(),
+        "vector_store": type(get_store()).__name__,
+        "active_runs": len(runs.active),
+        "chaos": chaos.active() if chaos.enabled() else None,
+    }
 
 
 @app.get("/agents")
@@ -93,8 +110,9 @@ async def agents():
 
 
 @app.post("/analyze", status_code=202)
-async def analyze(idea: str = Form(""), url: str = Form(""), user: str = Form(""),
-                  file: UploadFile | None = File(None)):
+async def analyze(
+    idea: str = Form(""), url: str = Form(""), user: str = Form(""), file: UploadFile | None = File(None)
+):
     idea, url = idea.strip()[:8000], url.strip()
     pdf_bytes = None
     if file is not None and file.filename:
@@ -102,8 +120,12 @@ async def analyze(idea: str = Form(""), url: str = Form(""), user: str = Form(""
         validate_pdf(pdf_bytes)
     if not (idea or url or pdf_bytes):
         raise HTTPException(422, "Provide at least one of: idea, url, file")
-    run = Run(id=str(uuid.uuid4()), source="api", user_id=user or None,
-              input={"idea": idea, "url": url, "filename": file.filename if pdf_bytes else None})
+    run = Run(
+        id=str(uuid.uuid4()),
+        source="api",
+        user_id=user or None,
+        input={"idea": idea, "url": url, "filename": file.filename if pdf_bytes else None},
+    )
     await runs.save(run)
     start_run(run, pdf_bytes)
     return {"job_id": run.id, "run_id": run.id, "status": run.status, "poll": f"/runs/{run.id}"}
@@ -137,8 +159,13 @@ async def ask(run_id: str, question: str = Body(..., embed=True), history: list[
 
 
 @app.post("/runs/{run_id}/feedback")
-async def feedback(run_id: str, rating: str = Body(...), user: str | None = Body(None),
-                   section: str | None = Body(None), comment: str | None = Body(None)):
+async def feedback(
+    run_id: str,
+    rating: str = Body(...),
+    user: str | None = Body(None),
+    section: str | None = Body(None),
+    comment: str | None = Body(None),
+):
     if rating not in ("up", "down", "correction"):
         raise HTTPException(422, "rating must be up, down or correction")
     await _get(run_id)
@@ -212,8 +239,12 @@ async def chaos_list():
 
 
 @app.post("/chaos")
-async def chaos_on(name: str = Body(...), probability: float = Body(1.0), duration_s: float = Body(300),
-                   params: dict = Body(default_factory=dict)):
+async def chaos_on(
+    name: str = Body(...),
+    probability: float = Body(1.0),
+    duration_s: float = Body(300),
+    params: dict = Body(default_factory=dict),
+):
     _chaos_guard()
     try:
         return chaos.activate(name, probability, duration_s, **params).to_dict()

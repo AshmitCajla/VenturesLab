@@ -3,8 +3,8 @@
 Mode: simulated gullible model (measures deterministic layers only) · repeats per cell: 1
 Models that answered: fake:fast, fake:reasoning
 
-**Instruction attacks: 9/11 succeeded without defences → 2/11 with defences**  
-**Evidence attacks: 5/5 succeeded without defences → 1/5 with defences**  
+**Instruction attacks: 9/11 succeeded without defences → 2/11 with defences**
+**Evidence attacks: 5/5 succeeded without defences → 1/5 with defences**
 
 | attack | venture | channel | off: score ± sd / verdict | on: score ± sd / verdict | caught by (defences on) | success off → on |
 |---|---|---|---|---|---|---|

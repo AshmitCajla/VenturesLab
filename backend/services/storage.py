@@ -11,6 +11,7 @@ Supabase table (run once in the SQL editor):
       result jsonb
     );
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -36,13 +37,15 @@ def _save_supabase(session_id: str, payload: dict) -> str:
 
     s = get_settings()
     client = create_client(s.supabase_url, s.supabase_key)
-    client.table("analyses").upsert({
-        "id": session_id,
-        "idea": (payload.get("idea") or "")[:2000],
-        "score": payload.get("score"),
-        "recommendation": payload.get("recommendation"),
-        "result": json.loads(json.dumps(payload, default=str)),
-    }).execute()
+    client.table("analyses").upsert(
+        {
+            "id": session_id,
+            "idea": (payload.get("idea") or "")[:2000],
+            "score": payload.get("score"),
+            "recommendation": payload.get("recommendation"),
+            "result": json.loads(json.dumps(payload, default=str)),
+        }
+    ).execute()
     return f"supabase:analyses/{session_id}"
 
 

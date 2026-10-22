@@ -1,27 +1,27 @@
-# How Claude Code was used, and how its output was checked
+# Engineering notes
 
-Most of v3 was written with Claude Code (Anthropic's coding agent) from a written vision of ten
-layers. The rule throughout: **nothing counts as done until something other than the model that
-wrote it says so** (a test, a harness, a live run, or a tool such as `promtool`).
+How v3 was built and verified, and what testing against real models caught. The rule throughout:
+nothing counts as done until something independent of the code says so (a test, a harness, a live
+run, or a tool such as `promtool`).
 
-## Workflow
+## Practice
 
-1. **Plan in the repo.** The vision was turned into `ROADMAP.md`, ordered by dependency (defences
+1. **Plan in the repo.** The ten-layer vision lives in `ROADMAP.md`, ordered by dependency (defences
    before Slack, evaluation before the planner, observability before the ops agent).
-2. **Probe before building.** Before choosing a design, Claude Code tested the real options against
-   live APIs: PyMuPDF's span data for hidden-text detection; Llama Prompt Guard 2 and
-   gpt-oss-safeguard on the paraphrased payload; OpenRouter's model list and the account's tier
-   (which showed paid fallback models would fail on this key); free vision models on an image
-   containing an instruction; the MCP SDK 2.x API surface.
-3. **Build in small slices, each with tests.** Offline tests use a deterministic fake model, so the
-   whole graph, Slack handlers, MCP servers, incidents and chaos run in CI without keys.
+2. **Probe before building.** Options were tested against live APIs before a design was chosen:
+   PyMuPDF's span data for hidden-text detection; Llama Prompt Guard 2 and gpt-oss-safeguard on the
+   paraphrased payload; OpenRouter's model list and account tier (which showed paid fallback models
+   would fail on a free key); free vision models on an image containing an instruction; the MCP SDK
+   2.x API surface.
+3. **Small slices, each with tests.** Offline tests use a deterministic fake model, so the whole
+   graph, Slack handlers, MCP servers, incidents and chaos run in CI without keys.
 4. **Measure with harnesses, not impressions.** Red team, chaos, golden set, consistency and the
    quality gate each produce a report; the gate blocks regressions on every PR.
-5. **Run it for real.** Live runs against Groq/OpenRouter, checked in the browser.
+5. **Run it for real.** Live runs against Groq and OpenRouter, checked in the browser.
 
 ## What the checks caught (all fixed)
 
-| Caught by | Problem in generated code or design |
+| Caught by | Problem |
 |---|---|
 | Live red-team run | The harness counted rate-limited (incomplete) runs as "attack blocked", which would have overstated the defences. Now marked incomplete and resumable. |
 | Live red-team run | Instruction attacks did not move a weak venture's score even with defences off (0/10), so that corpus could not show a before/after. Led to the fabricated-evidence corpus on a middling venture. |

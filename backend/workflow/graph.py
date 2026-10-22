@@ -11,6 +11,7 @@ Agents marked * are optional: the planner decides whether they run. A node
 with several inputs waits for all of them (LangGraph join), and every agent
 starts as soon as its own inputs are ready, so independent agents run in parallel.
 """
+
 from __future__ import annotations
 
 from functools import wraps
@@ -52,8 +53,10 @@ NODES = {
 }
 
 # Public metadata used by the API / UI to show progress
-AGENTS = [{"node": n, "number": f.spec.number, "name": f.spec.name, "optional": f.spec.optional}
-          for n, f in sorted(NODES.items(), key=lambda kv: kv[1].spec.number)]
+AGENTS = [
+    {"node": n, "number": f.spec.number, "name": f.spec.name, "optional": f.spec.optional}
+    for n, f in sorted(NODES.items(), key=lambda kv: kv[1].spec.number)
+]
 
 
 def _planned(key: str, fn):
@@ -65,12 +68,18 @@ def _planned(key: str, fn):
     async def node(state: dict) -> dict:
         run, reason = selected(state, key)
         if not run:
-            trace = {"agent": fn.spec.name, "number": fn.spec.number, "output": fn.spec.output_key,
-                     "attempts": 0, "status": "ok"}
+            trace = {
+                "agent": fn.spec.name,
+                "number": fn.spec.number,
+                "output": fn.spec.output_key,
+                "attempts": 0,
+                "status": "ok",
+            }
             out = _skip(fn.spec, f"not planned: {reason}", trace)
             out[fn.spec.output_key] = {"skipped": reason}
             return out
         return await fn(state)
+
     return node
 
 

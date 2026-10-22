@@ -8,6 +8,7 @@
 its live progress message. One run id ties together the run row, every log
 line, the OTel trace, the Prometheus exemplars and the Slack thread.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -45,8 +46,12 @@ def slots() -> asyncio.Semaphore:
 def summarise_evals(evals: list[dict]) -> dict:
     total = len(evals)
     passed = sum(e["passed"] for e in evals)
-    return {"passed": passed, "total": total, "pass_rate": round(passed / total, 3) if total else None,
-            "failed": [e for e in evals if not e["passed"]]}
+    return {
+        "passed": passed,
+        "total": total,
+        "pass_rate": round(passed / total, 3) if total else None,
+        "failed": [e for e in evals if not e["passed"]],
+    }
 
 
 async def _notify(run: Run, on_update: OnUpdate) -> None:
@@ -58,8 +63,9 @@ async def _notify(run: Run, on_update: OnUpdate) -> None:
             log.warning("progress callback failed: %s", exc)
 
 
-async def execute(run: Run, pdf_bytes: bytes | None = None, on_update: OnUpdate = None,
-                  budget_usd: float | None = None) -> Run:
+async def execute(
+    run: Run, pdf_bytes: bytes | None = None, on_update: OnUpdate = None, budget_usd: float | None = None
+) -> Run:
     idea, url = run.input.get("idea", ""), run.input.get("url", "")
     RUNS_QUEUED.inc()
     await runs.save(run)
@@ -114,8 +120,14 @@ async def _analyse(run: Run, idea: str, url: str, pdf_bytes: bytes | None, store
         raise ValueError("nothing to analyse: the deck could not be read and no description or website was usable")
     await _notify(run, on_update)
 
-    state: dict[str, Any] = {"session_id": run.id, "idea": idea, "trace": [], "evaluations": [],
-                             "evidence": {}, **ingested.state}
+    state: dict[str, Any] = {
+        "session_id": run.id,
+        "idea": idea,
+        "trace": [],
+        "evaluations": [],
+        "evidence": {},
+        **ingested.state,
+    }
     final = dict(state)
     async for update in compiled_graph.astream(state, stream_mode="updates"):
         for node, delta in update.items():
@@ -130,8 +142,9 @@ async def _analyse(run: Run, idea: str, url: str, pdf_bytes: bytes | None, store
                     final[key] = val
             if node == "plan":
                 planned = [k for k, v in delta["plan"]["agents"].items() if v["run"]]
-                run.progress.append({"node": "plan", "name": f"Plan: optional agents {', '.join(planned) or 'none'}",
-                                     "status": "ok"})
+                run.progress.append(
+                    {"node": "plan", "name": f"Plan: optional agents {', '.join(planned) or 'none'}", "status": "ok"}
+                )
             for t in delta.get("trace", []):
                 run.progress.append({"node": node, "name": t["agent"], **t})
             if node == "understand" and isinstance(delta.get("venture_profile"), dict):

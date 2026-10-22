@@ -15,6 +15,7 @@ runner (same code path as the API), and records:
     cd backend && python -m evaluation.chaos                # fake models, no keys (CI)
     cd backend && python -m evaluation.chaos --live --runs 2
 """
+
 from __future__ import annotations
 
 import argparse
@@ -30,15 +31,17 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
+from evaluation.paths import REPORTS  # noqa: E402
+
 
 @dataclass
 class Experiment:
     id: str
     fault: str | None
-    expected: set[str]                       # acceptable diagnosis categories
+    expected: set[str]  # acceptable diagnosis categories
     probability: float = 1.0
     params: dict = field(default_factory=dict)
-    concurrent: int = 0                      # >0: burst of simultaneous runs
+    concurrent: int = 0  # >0: burst of simultaneous runs
     with_deck: bool = False
 
 
@@ -55,11 +58,14 @@ IDEA = "ClinicFlow: WhatsApp-first scheduling assistant that cuts no-shows for i
 
 
 def _deck() -> bytes:
-    import fitz
+    import pymupdf
 
-    doc = fitz.open()
-    for text in ("ClinicFlow\nWhatsApp scheduling for clinics", "Problem\n15% of appointments are no-shows",
-                 "Traction\n14 paying clinics, $2.1K MRR"):
+    doc = pymupdf.open()
+    for text in (
+        "ClinicFlow\nWhatsApp scheduling for clinics",
+        "Problem\n15% of appointments are no-shows",
+        "Traction\n14 paying clinics, $2.1K MRR",
+    ):
         doc.new_page().insert_text((72, 90), text, fontsize=14)
     return doc.tobytes()
 
@@ -93,49 +99,67 @@ async def run_experiment(exp: Experiment, n_runs: int, live: bool) -> dict:
     statuses = [r.status for r in done]
     unavailable = [len((r.result or {}).get("degraded_agents", [])) for r in done if r.status == "done"]
     warnings = sum(len(r.warnings) for r in done) + sum(
-        len(t.get("warnings", [])) for r in done for t in (r.result or {}).get("trace", []))
+        len(t.get("warnings", [])) for r in done for t in (r.result or {}).get("trace", [])
+    )
     health = await slo.status()
     sigs = await tools.error_signatures(hours=1)
     top3 = [s["category"] for s in sigs[:3]]
     top = top3[0] if top3 else "unknown"
     row = {
-        "experiment": exp.id, "fault": exp.fault or "—", "runs": n,
-        "delivered": sum(s == "done" for s in statuses), "failed": statuses.count("failed"),
+        "experiment": exp.id,
+        "fault": exp.fault or "—",
+        "runs": n,
+        "delivered": sum(s == "done" for s in statuses),
+        "failed": statuses.count("failed"),
         "sections_unavailable_avg": round(sum(unavailable) / len(unavailable), 1) if unavailable else None,
-        "warnings": warnings, "wall_s": round(elapsed, 1),
+        "warnings": warnings,
+        "wall_s": round(elapsed, 1),
         "alerts": sorted({a["alert"] for a in health["burn_alerts"]}),
-        "top_signal": top, "top_signals": top3,
+        "top_signal": top,
+        "top_signals": top3,
         # on free tiers rate limits are real background noise, so the injected cause must be in the top 3
-        "signal_ok": (not exp.fault and top in exp.expected | {"rate_limit", "unknown"}) or bool(set(top3) & exp.expected),
+        "signal_ok": (not exp.fault and top in exp.expected | {"rate_limit", "unknown"})
+        or bool(set(top3) & exp.expected),
         "models": sorted({m for r in done for t in (r.result or {}).get("trace", []) for m in t.get("models", [])}),
     }
     if live and exp.fault:
         # The alert must not give the answer away: only what Alertmanager would really send.
         fired = next((a for a in health["burn_alerts"]), None)
-        alert = {"labels": {"alertname": fired["alert"] if fired else "ElevatedErrors",
-                            "severity": fired["severity"] if fired else "ticket"},
-                 "annotations": {"summary": "Investigate the analysis service: an alert fired or users reported problems."}}
+        alert = {
+            "labels": {
+                "alertname": fired["alert"] if fired else "ElevatedErrors",
+                "severity": fired["severity"] if fired else "ticket",
+            },
+            "annotations": {"summary": "Investigate the analysis service: an alert fired or users reported problems."},
+        }
         try:
             diag, _ = await agent.diagnose(alert)
-            row.update(diagnosis=diag.category, diagnosis_ok=diag.category in exp.expected,
-                       diagnosis_cause=diag.likely_cause)
+            row.update(
+                diagnosis=diag.category, diagnosis_ok=diag.category in exp.expected, diagnosis_cause=diag.likely_cause
+            )
         except Exception as exc:
             row.update(diagnosis=f"failed: {exc}", diagnosis_ok=False)
     return row
 
 
 def to_markdown(rows: list[dict], live: bool) -> str:
-    lines = ["# Chaos experiment report", "",
-             f"Mode: {'live models' if live else 'fake models (plumbing and deterministic signals only)'}", "",
-             "| experiment | fault | runs | delivered | failed | sections unavailable (avg) | degraded inputs "
-             "| SLO alerts fired | top error signals | injected cause among them |"
-             + (" ops agent diagnosis | diagnosis correct |" if live else ""),
-             "|---|---|---|---|---|---|---|---|---|---|" + ("---|---|" if live else "")]
+    lines = [
+        "# Chaos experiment report",
+        "",
+        f"Mode: {'live models' if live else 'fake models (plumbing and deterministic signals only)'}",
+        "",
+        "| experiment | fault | runs | delivered | failed | sections unavailable (avg) | degraded inputs "
+        "| SLO alerts fired | top error signals | injected cause among them |"
+        + (" ops agent diagnosis | diagnosis correct |" if live else ""),
+        "|---|---|---|---|---|---|---|---|---|---|" + ("---|---|" if live else ""),
+    ]
     for r in rows:
-        line = (f"| {r['experiment']} | {r['fault']} | {r['runs']} | {r['delivered']} | {r['failed']} "
-                f"| {r['sections_unavailable_avg']} | {r['warnings']} | {', '.join(r['alerts']) or '—'} "
-                f"| {', '.join(r.get('top_signals') or [r['top_signal']])} "
-                f"| {'✓' if r['signal_ok'] else '✗'} |")
+        line = (
+            f"| {r['experiment']} | {r['fault']} | {r['runs']} | {r['delivered']} | {r['failed']} "
+            f"| {r['sections_unavailable_avg']} | {r['warnings']} | {', '.join(r['alerts']) or '—'} "
+            f"| {', '.join(r.get('top_signals') or [r['top_signal']])} "
+            f"| {'✓' if r['signal_ok'] else '✗'} |"
+        )
         if live:
             line += f" {r.get('diagnosis', '—')} | {'✓' if r.get('diagnosis_ok') else ('—' if r['fault'] == '—' else '✗')} |"
         lines.append(line)
@@ -158,7 +182,7 @@ def main() -> None:
     ap.add_argument("--live", action="store_true")
     ap.add_argument("--runs", type=int, default=3, help="runs per experiment (bursts use their own count)")
     ap.add_argument("--only", nargs="*")
-    ap.add_argument("--out", default=str(HERE / "chaos_report.md"))
+    ap.add_argument("--out", default=str(REPORTS / "chaos_report.md"))
     args = ap.parse_args()
     os.environ["CHAOS"] = "1"
     if args.live:
@@ -167,7 +191,7 @@ def main() -> None:
         telemetry.setup("ventureslab-chaos")  # the ops agent reads the JSON log file
     if not args.live:
         os.environ.setdefault("EMBEDDINGS", "hash")
-        os.environ.setdefault("WEB_SEARCH", "1")   # search must be "on" for search_down to bite
+        os.environ.setdefault("WEB_SEARCH", "1")  # search must be "on" for search_down to bite
         os.environ.setdefault("DB_PATH", ":memory:")
         os.environ.setdefault("LOG_DIR", "")
         from core import llm, model_router

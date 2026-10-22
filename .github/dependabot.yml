@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule: {interval: weekly}
+    open-pull-requests-limit: 5
+    groups:
+      langchain: {patterns: ["langchain*", "langgraph*"]}
+      opentelemetry: {patterns: ["opentelemetry-*"]}
+  - package-ecosystem: pip
+    directory: /frontend
+    schedule: {interval: weekly}
+  - package-ecosystem: docker
+    directory: /backend
+    schedule: {interval: monthly}
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: {interval: monthly}

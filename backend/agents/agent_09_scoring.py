@@ -1,6 +1,7 @@
 """Scoring agent: the LLM judges five criteria, the final score is computed in
 code with fixed weights, so the BUILD / PIVOT / PASS decision is deterministic
 and explainable instead of a number the model makes up."""
+
 from agents.base import AgentSpec, as_json, make_node
 from core.config import get_settings
 from schema import SCORING_WEIGHTS, ScoringResult
@@ -21,14 +22,24 @@ def recommendation_for(score: float) -> str:
 
 
 def build_prompt(state, ctx):
-    evidence = {k: state.get(k, {}) for k in (
-        "venture_profile", "market_analysis", "market_size", "competitors",
-        "swot", "porter", "customer_validation")}
+    evidence = {
+        k: state.get(k, {})
+        for k in (
+            "venture_profile",
+            "market_analysis",
+            "market_size",
+            "competitors",
+            "swot",
+            "porter",
+            "customer_validation",
+        )
+    }
     claims = state.get("claims") or {}
     if claims.get("claims"):
         evidence["deck_claims_checked"] = [
             {k: c[k] for k in ("claim", "value", "citation", "status", "external_estimate", "note")}
-            for c in claims["claims"]]
+            for c in claims["claims"]
+        ]
     return f"""You are the managing partner of a $500M venture fund that backs only category-defining
 companies. Judge this venture on the evidence gathered by your analysts.
 
@@ -53,8 +64,13 @@ def postprocess(parsed, state):
 
 
 SPEC = AgentSpec(
-    number=9, name="Venture Scoring", output_key="scoring", schema=ScoringResult,
-    role="reasoning", build_prompt=build_prompt, postprocess=postprocess,
+    number=9,
+    name="Venture Scoring",
+    output_key="scoring",
+    schema=ScoringResult,
+    role="reasoning",
+    build_prompt=build_prompt,
+    postprocess=postprocess,
     requires=("venture_profile", "customer_validation"),
 )
 venture_scoring_agent = make_node(SPEC)

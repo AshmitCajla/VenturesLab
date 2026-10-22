@@ -1,4 +1,5 @@
 """Live web search used by the research agents and the verification agent."""
+
 from __future__ import annotations
 
 import asyncio
@@ -52,8 +53,11 @@ async def search_market_data(query: str, max_results: int = 5) -> tuple[str, lis
         results = await search(query, max_results)
     except Exception as exc:
         logger.warning("web search failed for %r: %s", query, exc)
-        return ("Web search unavailable; rely on general knowledge and state assumptions.", [],
-                f"web search unavailable: {type(exc).__name__}: {str(exc)[:200]}")
+        return (
+            "Web search unavailable; rely on general knowledge and state assumptions.",
+            [],
+            f"web search unavailable: {type(exc).__name__}: {str(exc)[:200]}",
+        )
     if not results:
         return "No relevant web results found.", [], None
     return format_results(results), [{"title": r["title"], "url": r["href"]} for r in results], None

@@ -11,6 +11,7 @@ fallback silently changes the analyst and the cost dashboard lies.
 
 Tests swap the factory with ``set_llm_factory`` so no network is needed.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -54,25 +55,36 @@ class Usage:
         return estimate_cost(self.provider, self.model, self.tokens_in, self.tokens_out)
 
     def to_dict(self) -> dict:
-        return {"provider": self.provider, "model": self.model, "tokens_in": self.tokens_in,
-                "tokens_out": self.tokens_out, "cost_usd": round(self.cost_usd, 6)}
+        return {
+            "provider": self.provider,
+            "model": self.model,
+            "tokens_in": self.tokens_in,
+            "tokens_out": self.tokens_out,
+            "cost_usd": round(self.cost_usd, 6),
+        }
 
 
 def _groq(model: str):
     from langchain_groq import ChatGroq
 
     s = get_settings()
-    return ChatGroq(model=model, temperature=0, api_key=s.groq_api_key,
-                    timeout=s.llm_timeout_s, max_retries=s.llm_max_retries)
+    return ChatGroq(
+        model=model, temperature=0, api_key=s.groq_api_key, timeout=s.llm_timeout_s, max_retries=s.llm_max_retries
+    )
 
 
 def _openrouter(model: str):
     from langchain_openai import ChatOpenAI
 
     s = get_settings()
-    return ChatOpenAI(model=model, temperature=0.1, api_key=s.openrouter_api_key,
-                      base_url="https://openrouter.ai/api/v1",
-                      timeout=s.llm_timeout_s, max_retries=s.llm_max_retries)
+    return ChatOpenAI(
+        model=model,
+        temperature=0.1,
+        api_key=s.openrouter_api_key,
+        base_url="https://openrouter.ai/api/v1",
+        timeout=s.llm_timeout_s,
+        max_retries=s.llm_max_retries,
+    )
 
 
 def available_providers() -> list[str]:
@@ -108,6 +120,14 @@ def get_llms(role: Role = "reasoning") -> list[tuple[str, str, Any]]:
     return out
 
 
+def _is_groq(model) -> bool:
+    try:
+        from langchain_groq import ChatGroq
+    except ImportError:  # pragma: no cover
+        return False
+    return isinstance(model, ChatGroq)
+
+
 def _structured(model, schema):
     """Native structured outputs (response_format=json_schema) instead of forced tool calls.
 
@@ -116,11 +136,7 @@ def _structured(model, schema):
     output follow the schema exactly; OpenRouter models get the non-strict variant.
     ``include_raw`` keeps the raw message so token usage can be recorded.
     """
-    try:
-        from langchain_groq import ChatGroq
-    except ImportError:  # pragma: no cover
-        ChatGroq = ()  # noqa: N806
-    if isinstance(model, ChatGroq):
+    if _is_groq(model):
         return model.with_structured_output(schema, method="json_schema", strict=True, include_raw=True)
     return model.with_structured_output(schema, method="json_schema", include_raw=True)
 
