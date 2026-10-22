@@ -1,0 +1,41 @@
+# Create the app at https://api.slack.com/apps -> "From an app manifest", paste this file.
+# Then: Install to workspace, copy the Bot token (xoxb-) to SLACK_BOT_TOKEN, create an
+# App-level token with connections:write and copy it (xapp-) to SLACK_APP_TOKEN.
+display_information:
+  name: VenturesLab
+  description: AI analyst that reviews pitch decks, shows its sources and flags manipulated decks.
+  background_color: "#1f2937"
+features:
+  app_home:
+    home_tab_enabled: true
+    messages_tab_enabled: false
+  bot_user:
+    display_name: VenturesLab
+    always_online: true
+  slash_commands:
+    - command: /ventureslab-digest
+      description: Post this week's VenturesLab digest
+      should_escape: false
+oauth_config:
+  scopes:
+    bot:
+      - app_mentions:read
+      - channels:history
+      - groups:history
+      - chat:write
+      - commands
+      - files:read
+      - im:history
+settings:
+  event_subscriptions:
+    bot_events:
+      - app_home_opened
+      - app_mention
+      - message.channels
+      - message.groups
+      - file_shared
+  interactivity:
+    is_enabled: true
+  socket_mode_enabled: true
+  org_deploy_enabled: false
+  token_rotation_enabled: false

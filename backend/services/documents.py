@@ -19,6 +19,7 @@ class Chunk:
     text: str
     page: int | None = None
     source: str = "deck"
+    score: float | None = None  # retrieval similarity, set by the vector store
 
 
 # ---------------------------------------------------------------- PDF decks

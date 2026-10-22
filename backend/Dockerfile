@@ -10,7 +10,8 @@ RUN pip install -r requirements.txt
 COPY . .
 # Bake the embedding model into the image so cold starts do not download it
 RUN python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5')" \
-    && useradd -m app && chown -R app /app
+    && useradd -m app && mkdir -p /app/data/logs && chown -R app /app
+# /app/data holds the SQLite database and JSON logs; mount a volume there to keep runs across restarts
 USER app
 
 # Render/Railway inject $PORT; Hugging Face Spaces expects 7860

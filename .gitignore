@@ -18,3 +18,4 @@ temp_images/
 .DS_Store
 .idea/
 .vscode/
+.claude/launch.json

@@ -5,7 +5,6 @@ from agents.agent_09_scoring import recommendation_for, weighted_score
 from core import model_router
 from evaluation.checks import run_checks
 from services.documents import Chunk, chunk_text
-from services.retrieval import InMemoryStore
 from tests.fakes import GOOD, FakeLLM
 from workflow.graph import AGENTS, compiled_graph
 
@@ -15,10 +14,10 @@ async def run(state=None):
         {"session_id": "t", "idea": "Clinic scheduling on WhatsApp", **(state or {})})
 
 
-async def test_full_run_executes_all_12_agents(fake_llm):
-    out = await run()
+async def test_full_run_executes_every_agent(fake_llm):
+    out = await run({"deck_pages": ["ClinicFlow", "Clinic software is a $50B market", "revenue $2M"]})
     ran = {t["agent"] for t in out["trace"] if t["status"] == "ok"}
-    assert len(ran) == 12 and len(AGENTS) == 12
+    assert len(ran) == 13 and len(AGENTS) == 13
     assert out["recommendation"] == "BUILD"
     assert out["financial_model"]["year_5_revenue_usd"] == 3e6
     assert all(e["passed"] for e in out["evaluations"] if e["severity"] == "error")
@@ -54,7 +53,7 @@ async def test_self_correction_retries_bad_market_sizing():
 
 
 async def test_agent_failure_is_isolated():
-    llm = FakeLLM({S.PESTLEAnalysis: [RuntimeError("provider down")] * 4})
+    llm = FakeLLM({S.PESTLEAnalysis: [RuntimeError("provider down")] * 5})
     model_router.set_llm_factory(lambda role: llm)
     try:
         out = await run()
@@ -65,7 +64,7 @@ async def test_agent_failure_is_isolated():
 
 
 async def test_profile_failure_skips_dependents():
-    llm = FakeLLM({S.VentureProfile: [RuntimeError("bad key")] * 4})
+    llm = FakeLLM({S.VentureProfile: [RuntimeError("bad key")] * 5})
     model_router.set_llm_factory(lambda role: llm)
     try:
         out = await run()
@@ -75,11 +74,10 @@ async def test_profile_failure_skips_dependents():
     assert len(skipped) >= 8
 
 
-async def test_rag_context_reaches_financial_agent(fake_llm, monkeypatch):
-    import agents.base as base
+async def test_rag_context_reaches_financial_agent(fake_llm):
+    from services.retrieval import get_store
 
-    store = InMemoryStore()
-    monkeypatch.setattr(base, "get_store", lambda: store)
+    store = get_store()
     await store.index("t", [Chunk("Team of four engineers from IIT.", 1),
                             Chunk("We project revenue of $2M ARR with burn rate of $40k per month.", 9)])
     await run({"deck_indexed": True})

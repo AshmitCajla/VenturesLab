@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: ventureslab
+    folder: VenturesLab
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

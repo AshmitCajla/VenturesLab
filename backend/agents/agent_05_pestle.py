@@ -16,5 +16,6 @@ relevant to this specific industry and geography (not generic statements)."""
 SPEC = AgentSpec(
     number=5, name="PESTLE", output_key="pestle", schema=PESTLEAnalysis, role="reasoning",
     build_prompt=build_prompt,
+    optional=True, description="PESTLE: political, economic, social, technological, legal, environmental factors. Valuable when regulation, policy or macro trends materially affect the business.",
 )
 pestle_agent = make_node(SPEC)

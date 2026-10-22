@@ -4,6 +4,11 @@ from __future__ import annotations
 import copy
 
 import schema as S
+from ops.agent import Diagnosis, OpsAnswer, Postmortem, ToolPlan
+from services.qa import Answer
+from services.security import ScreenResult
+from services.vision import SlideVision
+from workflow.planner import Plan
 
 GOOD = {
     S.VentureProfile: dict(
@@ -50,6 +55,26 @@ GOOD = {
     S.FinancialModel: dict(capex=["Laptops"], opex=["Cloud", "Salaries"], funding_required_usd=5e5,
                            year_1_revenue_usd=6e4, year_5_revenue_usd=3e6,
                            key_assumptions=["$25 ARPU", "8% monthly growth"]),
+    S.ClaimList: dict(claims=[
+        dict(claim="The company has $2M in revenue", kind="revenue", value="$2M", slide=3,
+             quote="revenue $2M", search_query="clinicflow revenue"),
+        dict(claim="Clinic software is a $50B market", kind="market_size", value="$50B", slide=2,
+             quote="a $50B market", search_query="clinic scheduling software market size")]),
+    S.VerdictList: dict(verdicts=[dict(index=1, status="conflict", external_estimate="$6-9B (2025)",
+                                       sources=["https://example.com/report"],
+                                       note="Independent reports are far smaller.")]),
+    Plan: dict(choices=[dict(agent=a, run=True, reason="useful here") for a in ("swot", "pestle", "porter", "claims")]),
+    ScreenResult: dict(violations=[]),
+    SlideVision: dict(text_in_images="", figures=[], chart_summary=""),
+    Diagnosis: dict(summary="Agents are failing on LLM timeouts.", likely_cause="Primary provider timing out",
+                    category="llm_timeout", evidence=["6x llm_timeout signature in 1h"], confidence="Medium",
+                    next_steps=["Check provider status", "Lower LLM_TIMEOUT_S"]),
+    ToolPlan: dict(calls=[dict(tool="error_signatures", arguments={"hours": 16}),
+                          dict(tool="not_a_tool", arguments={})]),
+    OpsAnswer: dict(answer="Two runs failed overnight on rate limits.", tools_used=[]),
+    Postmortem: dict(markdown="## Summary\nLLM timeouts degraded reports."),
+    Answer: dict(answer="The score is high because the pain is frequent (customer validation).",
+                 sections=["scoring", "customer_validation"], grounded=True),
 }
 
 

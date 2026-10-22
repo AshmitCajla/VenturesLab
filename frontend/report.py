@@ -22,7 +22,7 @@ def usd(x) -> str:
 
 
 def ok(section) -> bool:
-    return isinstance(section, dict) and section and "error" not in section
+    return isinstance(section, dict) and section and "error" not in section and "skipped" not in section
 
 
 def build_pdf(data: dict) -> bytes:
@@ -43,6 +43,28 @@ def build_pdf(data: dict) -> bytes:
     scoring = data.get("scoring", {})
     if ok(scoring):
         story.append(P(scoring.get("verdict_rationale", "")))
+
+    claims = (data.get("claims") or {}).get("claims", [])
+    if claims:
+        story.append(P("Deck claims checked", h2))
+        rows = [["Claim", "Slide", "Citation", "Check", "Independent estimate"]] + [
+            [P(c["claim"]), str(c["slide"]), c["citation"].replace("_", " "), c["status"],
+             P(c.get("external_estimate") or "")] for c in claims]
+        t = Table(rows, colWidths=[200, 35, 75, 70, 135])
+        t.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
+                               ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F1F5F9")),
+                               ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+        story.append(t)
+    sec = data.get("security") or {}
+    if sec.get("hidden_text") or sec.get("injections"):
+        story += [P("Manipulation removed from the inputs", h2),
+                  P(f"{sec.get('hidden_text', 0)} hidden passage(s) and {sec.get('injections', 0)} instruction(s) "
+                    "aimed at the AI were removed before analysis:")]
+        story += [P(f"- {f['location']}: {f['reason']}: \"{f['excerpt'][:160]}\"") for f in sec.get("findings", [])[:8]]
+    conf = data.get("confidence") or {}
+    if conf:
+        story += [P("Confidence by section", h2),
+                  P("; ".join(f"{k.replace('_', ' ')}: {v['level']}" for k, v in conf.items()))]
 
     if ok(profile):
         story.append(P("1. Venture overview", h2))

@@ -24,6 +24,11 @@ def build_prompt(state, ctx):
     evidence = {k: state.get(k, {}) for k in (
         "venture_profile", "market_analysis", "market_size", "competitors",
         "swot", "porter", "customer_validation")}
+    claims = state.get("claims") or {}
+    if claims.get("claims"):
+        evidence["deck_claims_checked"] = [
+            {k: c[k] for k in ("claim", "value", "citation", "status", "external_estimate", "note")}
+            for c in claims["claims"]]
     return f"""You are the managing partner of a $500M venture fund that backs only category-defining
 companies. Judge this venture on the evidence gathered by your analysts.
 
@@ -35,7 +40,9 @@ Score each criterion 1-10 with a one-sentence reason:
 - differentiation: is there an unfair, defensible advantage?
 - competition: 10 = fragmented / weak incumbents, 1 = entrenched monopoly
 - business_model: are the unit economics viable?
-Then give your confidence and a short verdict rationale. Be candid; do not be polite."""
+Where deck claims were checked, weigh conflicts with independent sources and citations that could not
+be found as credibility problems. Then give your confidence and a short verdict rationale.
+Be candid; do not be polite."""
 
 
 def postprocess(parsed, state):

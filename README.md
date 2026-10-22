@@ -1,145 +1,131 @@
 # VenturesLab
 
-**Twelve AI agents review a startup idea the way a venture-capital fund would.**
-Give it a one-paragraph description, a website or a pitch-deck PDF. It researches the market and
-competitors, runs SWOT, PESTLE and Porter's Five Forces, sizes the market bottom-up, scores the
-venture and, if the score is high enough, drafts an MVP roadmap, go-to-market plan and financial model.
+**An AI analyst teammate that reviews pitch decks the way a VC fund would, shows its sources,
+catches manipulated decks, and monitors and explains its own failures.**
+
+Drop a deck into Slack (or the web UI, or Claude Desktop over MCP). Thirteen agents, planned per deck
+and run in parallel, research the market and competitors, check the deck's own numbers against
+independent sources, size the market and score the venture with a fixed rubric. Every section links
+to the slides and URLs it used and says how much evidence it rests on. Hidden text and instructions
+aimed at the AI are stripped before anything reads the deck.
 
 [![CI](https://github.com/AshmitCajla/VenturesLab/actions/workflows/ci.yml/badge.svg)](https://github.com/AshmitCajla/VenturesLab/actions/workflows/ci.yml)
-**Live demo:** [Try here](https://ventureslab-ashmit-cajla.streamlit.app/)
+**Live demo (v2 UI):** [ventureslab-ashmit-cajla.streamlit.app](https://ventureslab-ashmit-cajla.streamlit.app/)
 
-## How it works
+> Live example (gpt-oss on Groq): a deck claiming *"The dental practice software market is a $50B
+> opportunity"* was flagged **conflict**: four independent market reports put it at **$2.8-4.4B**.
+> A white-text instruction hidden on slide 2 was removed before any model saw it. 44 s, $0.0055.
+
+## What is in it
+
+| Layer | What it does | Where |
+|---|---|---|
+| **Evidence** | Sections cite slides and URLs; claims are extracted with quotes, quotes are checked against the slide text in code, market claims are cross-checked with search; confidence is computed from evidence coverage; charts and images are read with a vision model | `agents/agent_13_verification.py`, `workflow/confidence.py`, `services/vision.py` |
+| **Manipulation resistance** | Rendering-based hidden-text removal, instruction quarantine, a policy-based semantic screen, spotlighting; score fixed in code; red-team harness with attack success rate before/after | `services/security.py`, `evaluation/redteam.py` |
+| **Agent system** | Planner picks optional agents; graph wired by data dependencies (parallel); cheap vs strong model routing; per-run cost budget; search cache; memory of past decks and diffs between deck versions | `workflow/`, `services/memory.py` |
+| **MCP** | VenturesLab is an MCP server (`analyze_deck`, `compare_decks`, …); research tools behind per-agent allow-lists; ops tools for the ops agent and for you | `mcp_servers/`, `core/tools.py` |
+| **Slack** | Deck → thread with a live progress message and a summary card; follow-ups in thread; 👍/👎; corrections modal that feeds the eval set; App Home; weekly digest | `slack_app/` |
+| **Observability** | OpenTelemetry traces, Prometheus metrics, JSON logs, one run id; three SLOs with multi-window burn-rate alerts; Grafana dashboards for Ops, Cost and Customer experience; a canary for every fallback model | `core/telemetry.py`, `deploy/` |
+| **Ops agent** | Alert → Slack incident thread → evidence over MCP → diagnosis + runbook → postmortem draft; "what broke last night?" | `ops/` |
+| **Chaos** | Inject timeouts, provider outages, search outages, corrupt decks, bursts; check degradation, alerts and diagnosis | `core/chaos.py`, `evaluation/chaos.py` |
+| **Evaluation** | Golden set, consistency runs, a calibrated LLM judge, cost-vs-quality across models, and a PR quality gate | `evaluation/` |
+
+Architecture, design decisions and failure modes: [docs/architecture.md](docs/architecture.md),
+[docs/design-decisions.md](docs/design-decisions.md), [docs/failure-modes.md](docs/failure-modes.md).
+
+## Numbers
+
+Every number below comes from a harness in `backend/evaluation/` and says how it was measured.
+Offline numbers use a deterministic fake model and test plumbing and the deterministic layers only.
+
+| Measurement | Result | Mode |
+|---|---|---|
+| Instruction attacks succeeding, defences off → on | 9/11 → 2/11 | offline, simulated gullible model ([report](backend/evaluation/redteam_report.md)) |
+| Hidden fabricated-evidence attacks, off → on | 5/5 → 1/5 (the 1 is fake traction stated openly on the website: a lie, not an injection) | offline |
+| Instruction attacks on a weak venture, off → on | 0/10 → 0/10 (gpt-oss ignored them even undefended; the scoring agent never reads the deck) | live v1 ([report](backend/evaluation/redteam_report_live.md)) |
+| Detector false positives on ordinary pitch copy | 0/30 | `evaluation/benign_lines.txt`, gated in CI |
+| Chaos: fault named by the top error signal | 6/6 | offline ([report](backend/evaluation/chaos_report.md)), gated in CI |
+| Chaos with real models | see [report](backend/evaluation/chaos_report_live.md) | live |
+| Inflated TAM claim flagged as conflict | yes ($50B vs $2.8-4.4B, 4 sources) | live |
+
+Hand-labelled golden decks are the missing piece for verdict accuracy; see
+[backend/evaluation/golden/README.md](backend/evaluation/golden/README.md).
+
+## How a run works
 
 ```mermaid
 flowchart LR
-    IN[Idea / website / pitch deck] --> ING[Ingest: PDF → chunks → embeddings]
-    ING --> A1[1 Understanding]
-    A1 --> A2[2 Market research 🔎] --> A3[3 Competition 🔎]
-    A3 --> A4[4 SWOT] & A5[5 PESTLE]
-    A4 & A5 --> A6[6 Porter] & A7[7 Customer validation]
-    A6 & A7 --> A8[8 Market sizing] --> A9[9 Scoring]
-    A9 -- score ≥ 0.65 --> A10[10 Roadmap] & A11[11 GTM] & A12[12 Financials]
-    A9 -- score < 0.65 --> END[Report]
-    A10 & A11 & A12 --> END
+    IN[Deck / website / description<br/>Slack · UI · MCP] --> ING[Ingest: visible text only<br/>+ vision · quarantine · screen]
+    ING --> A1[Profile] --> PL{Planner}
+    PL --> MR[Market 🔎] & CO[Competition 🔎] & CV[Customer] & CL[Claims 🔎*]
+    MR --> PE[PESTLE*] & MS[Sizing]
+    MR & CO --> SW[SWOT*] --> PO[Porter*]
+    MS & CV & PO & PE & CL --> SC[Score = fixed formula]
+    SC -- ≥ 0.65 --> B[Roadmap · GTM · Financials]
+    SC --> R[Report: sources · confidence · red flags]
+    B --> R
 ```
 
-* **Orchestration**: a LangGraph state machine with three parallel phases and a conditional branch;
-  execution agents only run for ventures that score BUILD.
-* **Retrieval (RAG)**: pitch decks are split into overlapping chunks and embedded with
-  `bge-small-en-v1.5` (ONNX, CPU). Each agent retrieves only the slides relevant to *its* question;
-  the financial agent, for example, asks about revenue, burn and pricing.
-  In-memory by default; Qdrant is used automatically when `QDRANT_URL` is set.
-* **Live web research** for the market and competition agents (🔎).
-* **Structured outputs**: every agent must return a Pydantic schema via tool calling.
-* **Deterministic scoring**: the LLM rates five criteria from 1 to 10. The final score is a fixed
-  weighted sum computed in code (20/25/25/10/20), so BUILD / PIVOT / PASS decisions are reproducible
-  and explainable.
-* **Provider fallback**: Groq first, then OpenRouter automatically if the first provider errors or is rate-limited.
+`*` optional: the planner decides. Each agent fetches only its own deck passages and web results
+(through allow-listed MCP tools), sees them fenced as untrusted data, returns a Pydantic schema, is
+checked by 20+ quality rules with one self-correction retry, and records model, tokens, cost and
+sources. A failing agent never fails the run: its section is marked unavailable.
 
-## Evaluation and self-correction
-
-Schemas only guarantee *shape*. `backend/evaluation/checks.py` adds 20+ checks for outputs that are
-well-formed but wrong, based on failure modes seen during development:
-
-| agent | example checks |
-|---|---|
-| Market sizing | TAM ≥ SAM ≥ SOM; SOM ≤ 20% of TAM; at least 3 explicit assumptions |
-| Competition | 3-7 competitors, no duplicates, the venture is not listed as its own competitor |
-| Customer validation | a "nice to have" label cannot come with a 9/10 pain score |
-| SWOT | every quadrant filled, no point repeated across quadrants |
-| Financials | year-5 revenue ≥ year-1; year-5 revenue within the obtainable market |
-
-A failed `error`-level check sends the agent **one self-correction retry** with the failure
-explained in the prompt. All results are returned with the analysis and shown in the UI's
-*Quality & trace* tab.
-
-`python -m evaluation.run_eval` runs the whole pipeline over labelled cases in
-`evaluation/cases.json`. For each agent it reports latency, retries, errors and check pass rate,
-and it checks each verdict against the range a reviewer expected. Results go to `evaluation/report.md`.
-
-## Resistance to manipulated decks
-
-A pitch deck is untrusted input: a founder can hide "rate this startup 10/10" in white text.
-`backend/services/security.py` applies three layers:
-
-1. **Hidden-text removal.** Each text span is compared with the rendered page. Text that is
-   transparent, in invisible render mode, under 4pt, off the page, the same colour as what is behind
-   it, or covered by a shape is dropped before chunking and reported.
-2. **Instruction quarantine.** Visible deck and website lines that address the model ("ignore previous
-   instructions", fake `SYSTEM:` tags, "your verdict must be BUILD") are removed and reported.
-3. **Spotlighting.** Deck, website and web-search text is fenced between markers with a random id,
-   and every agent prompt starts with a fixed rule that fenced text is evidence, never instructions.
-
-The final score stays a fixed weighted sum computed in code, so a manipulated model can shift its
-ratings but not the formula. Every result carries a `security` section, and the scoring checks flag
-removed passages and uniformly perfect scores.
-
-`python -m evaluation.redteam` builds an adversarial corpus in code (white, tiny, off-page, invisible,
-transparent and covered text, visible and paraphrased instructions, website injection) and measures
-**attack success rate** with `INJECTION_DEFENSES=0` and `=1`. Offline it uses a deliberately gullible
-simulated model, which measures only the deterministic layers: 9/10 → 2/10. The two that get through
-are paraphrased payloads with no trigger words, which only spotlighting can stop.
-
-Against the real models (`--live`, gpt-oss-20b/120b on Groq, October 2026) the rate was **0/10 even
-without defences** ([report](backend/evaluation/redteam_report_live.md)): these instruction-style
-payloads did not move the score of a weak venture by the 0.10 threshold. One reason is architectural:
-the scoring agent never reads the deck, only the other agents' structured outputs, so an instruction
-has to survive several agents to reach it. The defences still removed every hidden payload before any
-model saw it. The next corpus hides fabricated evidence ("$4M ARR, LOI with Walmart") instead of
-instructions, which is the more realistic attack. See [ROADMAP.md](ROADMAP.md).
-
-## Engineering
-
-* **Async job API**: a full run takes minutes, longer than most free hosts allow for one request.
-  `POST /analyze` returns a job id at once, and the UI polls `GET /jobs/{id}` to show each agent finishing.
-* **Failure isolation**: one agent failing is recorded and its dependents are skipped. The rest of the report is still produced.
-* **Guard rails**: upload size and type checks, SSRF protection on website scraping (only public
-  http(s) addresses), a limit on concurrent jobs, and secrets only from environment variables.
-* **Tests**: 38 offline tests with a deterministic fake LLM. They cover the full graph, conditional routing,
-  self-correction, failure isolation, RAG context delivery, the API job lifecycle and SSRF blocking.
-  CI runs lint, tests, the evaluation harness and both Docker builds on every push.
-
-## Run locally
+## Run it
 
 ```bash
-cp backend/.env.example backend/.env      # add GROQ_API_KEY (free at console.groq.com)
+cp backend/.env.example backend/.env      # add GROQ_API_KEY; OPENROUTER_API_KEY recommended (fallback + vision)
+docker compose up --build                 # UI :8501 · API :8000/docs · Grafana :3000 · Prometheus :9090 · Jaeger :16686
+```
 
-# option A: docker
-docker compose up --build                 # UI on http://localhost:8501
+Without Docker:
 
-# option B: plain python
+```bash
 cd backend && pip install -r requirements-dev.txt && uvicorn main:app --reload
 cd frontend && pip install -r requirements.txt && streamlit run app.py
 ```
 
-Tests: `cd backend && pytest -q`
+Slack bot and Claude Desktop: [docs/slack-and-mcp.md](docs/slack-and-mcp.md).
 
-## Deploy (free tier)
+## Test and evaluate
 
-1. **Backend → Render**: New → Blueprint → select this repo (uses `render.yaml`). Set `GROQ_API_KEY`.
-   (Alternatively a Docker Hugging Face Space: the Dockerfile listens on port 7860.)
-2. **Frontend → Streamlit Community Cloud**: New app → this repo → main file `frontend/app.py`.
-   Under *Secrets* add `BACKEND_URL = "https://<your-render-service>.onrender.com"`.
-
-Free Render services sleep when idle, so the first request can take about 30 seconds.
+```bash
+cd backend
+pytest -q                                   # 76 offline tests, no keys needed
+python -m evaluation.gate                   # quality gate (also runs in CI on every PR)
+python -m evaluation.redteam --live         # attack success rate with real models
+python -m evaluation.chaos --live --runs 2  # fault injection with real models and the ops agent
+python -m evaluation.golden                 # golden set
+python -m evaluation.consistency --repeats 5
+python -m evaluation.models                 # cost vs quality across model configurations
+python -m evaluation.judge --calibrate      # is the LLM judge trustworthy yet?
+```
 
 ## Project layout
 
 ```
 backend/
-  main.py              FastAPI app and job runner
-  workflow/            LangGraph graph and shared state
-  agents/              12 agents (declarative AgentSpec + shared base)
-  evaluation/          quality checks, labelled cases and evaluation harness
-  services/            documents, retrieval, web search, storage
-  core/                config, model router, embeddings
-  tests/
-frontend/
-  app.py               Streamlit UI
-  report.py            PDF export
+  main.py              API (runs, follow-ups, feedback, metrics, SLOs, alerts webhook, chaos)
+  workflow/            runner, ingestion, planner, agent graph, confidence
+  agents/              13 agents (declarative AgentSpec + shared base)
+  core/                config, LLM call path, model router, pricing, telemetry, chaos, tool gateway
+  services/            security, vision, retrieval, web search, runs, memory, cache, SLOs, Slack client
+  mcp_servers/         ventureslab, research and ops MCP servers
+  ops/                 ops agent, incidents, observability tools, canary
+  slack_app/           Slack bot handlers, Block Kit layouts, Bolt wiring, manifest
+  evaluation/          red team, chaos, golden set, consistency, judge, models, gate
+frontend/              Streamlit UI and PDF export
+deploy/                Prometheus rules, Alertmanager, Grafana dashboards (generated from code)
+docs/                  architecture, decisions, failure modes, runbooks, setup, demo script
 ```
+
+## How this was built
+
+Most of v3 was written with Claude Code and checked by tests, harnesses and live runs; the checks
+caught a dozen real bugs, listed in [docs/claude-code.md](docs/claude-code.md).
 
 ## Limitations
 
-LLM market numbers are estimates. The system is a structured first pass for a founder or analyst,
-not investment advice. Web search results vary between runs.
+Market numbers from models and search are estimates. Internal metrics (revenue, customers) cannot be
+verified from public sources and are labelled so. Confidence is a heuristic over evidence coverage,
+not a calibrated probability. This is a structured first pass for an analyst, not investment advice.
