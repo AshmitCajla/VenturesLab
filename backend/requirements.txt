@@ -20,7 +20,7 @@ opentelemetry-exporter-otlp-proto-http>=1.30
 # MCP servers (VenturesLab, research tools, ops tools)
 mcp>=2.3,<3
 # Slack bot (Socket Mode)
-slack-bolt>=1.21
+slack-bolt>=1.30.0
 slack-sdk>=3.33
 aiohttp>=3.10
 # optional integrations (enabled when their env vars are set)
