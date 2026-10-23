@@ -1,7 +1,7 @@
 """Check a Slack setup before starting the API.
 
     python -m slack_app.check            # tokens, scopes, Socket Mode, channels
-    python -m slack_app.check --post     # also posts a test message to the ops channel
+    python -m slack_app.check --post     # also posts a test message to the configured channels
 
 Exits non-zero with a specific fix for the first thing that is wrong.
 """
@@ -63,24 +63,32 @@ async def check(post: bool) -> None:
         )
     print("✓ Socket Mode")
 
+    posted = set()
     for name, channel in (("SLACK_OPS_CHANNEL", s.slack_ops_channel), ("SLACK_DIGEST_CHANNEL", s.slack_digest_channel)):
         if not channel:
             print(f"· {name} not set (optional)")
             continue
+        if channel in posted:
+            print(f"✓ {name}: same channel")
+            continue
+        # The bot has no channels:read scope (least privilege), so membership is proven by posting.
+        if not post:
+            print(f"· {name}={channel} not verified (run with --post to send a test message)")
+            continue
         try:
-            info = await bot.conversations_info(channel=channel)
-        except SlackApiError as exc:
-            _fail(
-                f"{name}={channel}: {exc.response['error']}",
-                "use the channel ID (channel details → bottom of the About tab), not its name",
+            await bot.chat_postMessage(
+                channel=channel, text=f"VenturesLab is connected ✅ ({name.split('_')[1].lower()})"
             )
-        if not info["channel"].get("is_member"):
-            _fail(f"{name}: the bot is not in #{info['channel']['name']}", f"in Slack: /invite @{auth['user']}")
-        print(f"✓ {name}: #{info['channel']['name']}")
+        except SlackApiError as exc:
+            err = exc.response["error"]
+            fixes = {
+                "not_in_channel": f"in that channel: /invite @{auth['user']}",
+                "channel_not_found": "use the channel ID: /ventureslab channel inside the channel shows it",
+            }
+            _fail(f"{name}={channel}: {err}", fixes.get(err, "check the channel ID and that the bot is invited"))
+        posted.add(channel)
+        print(f"✓ {name}: test message posted")
 
-    if post and s.slack_ops_channel:
-        await bot.chat_postMessage(channel=s.slack_ops_channel, text="VenturesLab is connected ✅")
-        print("✓ test message posted")
     print("\nAll good. Start the API (make api) and drop a PDF deck in a channel the bot is in.")
 
 

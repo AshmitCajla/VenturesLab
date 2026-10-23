@@ -13,10 +13,12 @@ Everything here works on Slack's free plan: Socket Mode needs no public URL, ser
 4. **App token.** *Basic Information* → *App-Level Tokens* → *Generate Token and Scopes*, add the scope
    `connections:write`, generate, and copy it (`xapp-…`) into `backend/.env` as `SLACK_APP_TOKEN`.
 5. **Channels.** In Slack create `#deals` (where decks are dropped) and `#ops-alerts`, and in each run
-   `/invite @VenturesLab`. Copy the ops channel's ID (channel name → *About* → bottom of the panel,
-   `C0…`) into `SLACK_OPS_CHANNEL`, and the same or another channel's ID into `SLACK_DIGEST_CHANNEL`.
+   `/invite @VenturesLab`. In `#ops-alerts`, run `/ventureslab channel`: the bot replies with the
+   channel's ID (`C0…`). Put it in `backend/.env` as `SLACK_OPS_CHANNEL` and `SLACK_DIGEST_CHANNEL`
+   (or use another channel's ID for the digest).
 6. **Check.** `make slack-check` verifies the tokens, scopes, Socket Mode and channels, prints the exact
-   fix for anything wrong, and posts a test message to the ops channel.
+   fix for anything wrong, and posts a test message to each configured channel (which also proves the
+   bot is a member, without asking for the `channels:read` scope).
 7. **Run.** `make api` (or `docker compose up`). The log shows `Slack bot connected (Socket Mode)`.
    Set `PUBLIC_UI_URL` if the UI is not on `http://localhost:8501`, so "Full report" links work.
 
