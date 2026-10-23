@@ -30,6 +30,7 @@ def runbook_dir() -> Path:
 
 # error signature -> likely cause category (hints for the agent, not conclusions)
 SIGNALS = [
+    (r"interrupted by a server restart", "restart"),
     (r"rate.?limit|\b429\b|tokens per (minute|day)|TPM|TPD|RPM", "rate_limit"),
     (r"timeout|timed out|ReadTimeout|deadline", "llm_timeout"),
     (

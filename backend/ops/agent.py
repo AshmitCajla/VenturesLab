@@ -28,6 +28,7 @@ Category = Literal[
     "web_search",
     "deck_parsing",
     "model_output_format",
+    "restart",
     "cost_budget",
     "capacity",
     "code_bug",
@@ -42,6 +43,7 @@ RUNBOOK_FOR = {
     "deck_parsing": "deck-parsing-failures",
     "model_output_format": "llm-provider-errors",
     "cost_budget": "cost-budget",
+    "restart": "run-failures",
     "capacity": "high-latency",
     "code_bug": "run-failures",
     "unknown": "run-failures",
@@ -116,6 +118,10 @@ def signals(evidence: dict) -> list[str]:
 
 
 NEXT_STEPS = {
+    "restart": [
+        "Check whether a deploy or restart happened at the failure time",
+        "Give the API a shutdown grace period (SHUTDOWN_GRACE_S, container stop timeout)",
+    ],
     "rate_limit": [
         "Check provider quotas (TPM/TPD) in recent_logs",
         "Lower MAX_CONCURRENT_JOBS or switch LLM_PROVIDER",
@@ -165,8 +171,14 @@ async def diagnose(alert: dict, evidence: dict | None = None) -> tuple[Diagnosis
 async def _model_diagnosis(alert: dict, evidence: dict) -> Diagnosis:
     prompt = f"""You are the on-call SRE for VenturesLab, a multi-agent LLM service that analyses
 pitch decks (Groq and OpenRouter models, web search, PDF parsing). An alert fired. Diagnose the most
-likely cause from the evidence only. Cite numbers from the evidence. If evidence is thin, say so and
-use confidence Low.
+likely cause from the evidence only. Cite numbers from the evidence.
+- The error messages of failed runs and the error signatures are the primary evidence of cause.
+  Something else being unhealthy at the same time (e.g. one fallback model down) is not the cause
+  unless the failed runs' errors point to it. "interrupted by a server restart" means a deploy or
+  restart killed runs in progress (category restart).
+- Confidence High only when the failed runs, the signatures and the metrics all point to the same
+  cause; Medium when they mostly agree; Low when evidence is thin or conflicting.
+- Mention other unhealthy components you saw as secondary findings in next_steps.
 
 Alert: {json.dumps(alert, default=str)[:1500]}
 

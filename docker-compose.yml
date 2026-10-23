@@ -10,6 +10,7 @@ services:
   backend:
     build: ./backend
     env_file: ./backend/.env
+    stop_grace_period: 150s  # let analyses in progress finish (SHUTDOWN_GRACE_S=120)
     environment:
       PORT: 8000
       DB_PATH: /app/data/ventureslab.db

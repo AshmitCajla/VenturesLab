@@ -85,6 +85,8 @@ class Settings:
     cors_origins: str = field(default_factory=lambda: _env("CORS_ORIGINS", "*"))
     # Public deployments: comma-separated API keys (empty = open, for local development)
     api_keys: str = field(default_factory=lambda: _env("API_KEYS"))
+    # seconds a shutdown waits for analyses in progress (container stop timeouts must be longer)
+    shutdown_grace_s: float = field(default_factory=lambda: float(_env("SHUTDOWN_GRACE_S", "120")))
     rate_limit_runs_per_hour: int = field(default_factory=lambda: int(_env("RATE_LIMIT_RUNS_PER_HOUR", "20")))
 
     # Agent system
