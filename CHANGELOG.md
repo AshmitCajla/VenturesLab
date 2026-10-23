@@ -14,6 +14,10 @@ Notable changes. Dates are release dates.
 - Ops agent (incident threads, diagnosis, postmortems) and chaos harness.
 - Golden set, consistency, judge calibration, model comparison and a PR quality gate.
 
+- API keys and per-key rate limits; MCP served at `/mcp` inside the API; MCP proxy mode for local
+  clients against a deployment; `/ventureslab` slash command.
+- Production deployment: Caddy (automatic HTTPS), production compose override, backups, Render blueprint.
+
 ### Changed
 - One LLM call path with a provider chain, per-model token pacing and cost accounting.
 - Evaluation inputs live in `evaluation/data/`, generated reports in `evaluation/reports/`.

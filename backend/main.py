@@ -11,9 +11,11 @@ for a single HTTP request. So analysis is a background *run*:
     GET  /runs/{id}/report.md     -> Markdown summary
     GET  /agents  /health  /metrics  /slo
     POST /ops/alerts              -> Alertmanager webhook -> ops agent incident
+    /mcp                          -> VenturesLab MCP server (streamable HTTP)
     GET|POST|DELETE /chaos        -> fault injection (only with CHAOS=1)
 
-``GET /jobs/{id}`` is kept as an alias for v2 clients.
+``GET /jobs/{id}`` is kept as an alias for v2 clients. With ``API_KEYS`` set, every
+route except /health, /metrics and the webhook needs a key (core/auth.py).
 """
 
 from __future__ import annotations
@@ -22,12 +24,13 @@ import asyncio
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import Body, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from core import chaos, telemetry
+from core.auth import AuthMiddleware
 from core.config import get_settings
 from core.model_router import available_providers
 from core.telemetry import FEEDBACK
@@ -57,7 +60,10 @@ async def lifespan(app: FastAPI):
         )
         if t
     ]
-    yield
+    from mcp_servers.ventureslab_server import http_mount
+
+    async with http_mount.running():  # VenturesLab MCP server at /mcp, behind the same API keys
+        yield
     for t in background:
         t.cancel()
 
@@ -68,6 +74,7 @@ app = FastAPI(
     lifespan=lifespan,
     description="Multi-agent venture analysis with evidence checks, injection defences and SRE tooling.",
 )
+app.add_middleware(AuthMiddleware)  # added before CORS so CORS wraps it and 401s carry CORS headers
 app.add_middleware(
     CORSMiddleware, allow_origins=settings.cors_origins.split(","), allow_methods=["*"], allow_headers=["*"]
 )
@@ -111,7 +118,11 @@ async def agents():
 
 @app.post("/analyze", status_code=202)
 async def analyze(
-    idea: str = Form(""), url: str = Form(""), user: str = Form(""), file: UploadFile | None = File(None)
+    request: Request,
+    idea: str = Form(""),
+    url: str = Form(""),
+    user: str = Form(""),
+    file: UploadFile | None = File(None),
 ):
     idea, url = idea.strip()[:8000], url.strip()
     pdf_bytes = None
@@ -123,7 +134,7 @@ async def analyze(
     run = Run(
         id=str(uuid.uuid4()),
         source="api",
-        user_id=user or None,
+        user_id=user or getattr(request.state, "caller", None),
         input={"idea": idea, "url": url, "filename": file.filename if pdf_bytes else None},
     )
     await runs.save(run)
@@ -257,3 +268,13 @@ async def chaos_off(name: str | None = None):
     _chaos_guard()
     chaos.clear(name)
     return chaos.active()
+
+
+def _mount_mcp() -> None:
+    """Mounted last, at the root, so it only sees paths no API route matched (it serves /mcp)."""
+    from mcp_servers.ventureslab_server import http_mount
+
+    app.mount("/", http_mount)
+
+
+_mount_mcp()

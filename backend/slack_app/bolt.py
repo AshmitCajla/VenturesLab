@@ -60,6 +60,13 @@ def build_app():
         await ack()
         await handlers.on_correction(view, body.get("user", {}).get("id"))
 
+    @app.command("/ventureslab")
+    async def _slash(ack, command, respond):
+        await ack()  # Slack needs an answer within 3 s; the work happens after
+        reply = await handlers.on_slash(command)
+        if reply:
+            await respond(text=reply, response_type="ephemeral")
+
     @app.command("/ventureslab-digest")
     async def _digest_cmd(ack, respond):
         await ack()

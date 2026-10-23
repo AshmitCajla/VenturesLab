@@ -26,6 +26,7 @@ def _secret(name: str, default: str) -> str:
 
 BACKEND_URL = _secret("BACKEND_URL", "http://localhost:8000").rstrip("/")
 GRAFANA_URL = _secret("GRAFANA_URL", "").rstrip("/")
+API_KEY = _secret("API_KEY", "")  # one of the backend's API_KEYS when it is deployed publicly
 
 st.set_page_config(page_title="VenturesLab", page_icon="📈", layout="wide")
 
@@ -60,7 +61,8 @@ def describe_changes(ch: dict) -> str:
 
 
 def api(method: str, path: str, **kw):
-    return requests.request(method, f"{BACKEND_URL}{path}", timeout=kw.pop("timeout", 30), **kw)
+    headers = {"X-API-Key": API_KEY} if API_KEY else {}
+    return requests.request(method, f"{BACKEND_URL}{path}", timeout=kw.pop("timeout", 30), headers=headers, **kw)
 
 
 @st.cache_data(ttl=3600)

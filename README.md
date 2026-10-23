@@ -23,8 +23,9 @@ aimed at the AI are stripped before anything reads the deck.
 | **Evidence** | Sections cite slides and URLs; claims are extracted with quotes, quotes are checked against the slide text in code, market claims are cross-checked with search; confidence is computed from evidence coverage; charts and images are read with a vision model | `agents/agent_13_verification.py`, `workflow/confidence.py`, `services/vision.py` |
 | **Manipulation resistance** | Rendering-based hidden-text removal, instruction quarantine, a policy-based semantic screen, spotlighting; score fixed in code; red-team harness with attack success rate before/after | `services/security.py`, `evaluation/redteam.py` |
 | **Agent system** | Planner picks optional agents; graph wired by data dependencies (parallel); cheap vs strong model routing; per-run cost budget; search cache; memory of past decks and diffs between deck versions | `workflow/`, `services/memory.py` |
-| **MCP** | VenturesLab is an MCP server (`analyze_deck`, `compare_decks`, …); research tools behind per-agent allow-lists; ops tools for the ops agent and for you | `mcp_servers/`, `core/tools.py` |
-| **Slack** | Deck → thread with a live progress message and a summary card; follow-ups in thread; 👍/👎; corrections modal that feeds the eval set; App Home; weekly digest | `slack_app/` |
+| **MCP** | VenturesLab is an MCP server (`analyze_deck`, `compare_decks`, …), served at `/mcp` on the API behind the same keys, or locally as a proxy to a deployment; research tools behind per-agent allow-lists; ops tools for the ops agent and for you | `mcp_servers/`, `core/tools.py` |
+| **Slack** | Deck → thread with a live progress message and a summary card; `/ventureslab` for websites and ideas; follow-ups in thread; 👍/👎; corrections modal that feeds the eval set; App Home; weekly digest | `slack_app/` |
+| **Security** | API keys and per-key rate limits; untrusted input fenced everywhere; SSRF guards on URLs and Slack downloads | `core/auth.py`, `services/security.py` |
 | **Observability** | OpenTelemetry traces, Prometheus metrics, JSON logs, one run id; three SLOs with multi-window burn-rate alerts; Grafana dashboards for Ops, Cost and Customer experience; a canary for every fallback model | `core/telemetry.py`, `deploy/` |
 | **Ops agent** | Alert → Slack incident thread → evidence over MCP → diagnosis + runbook → postmortem draft; "what broke last night?" | `ops/` |
 | **Chaos** | Inject timeouts, provider outages, search outages, corrupt decks, bursts; check degradation, alerts and diagnosis | `core/chaos.py`, `evaluation/chaos.py` |
@@ -90,6 +91,17 @@ make ui         # UI on :8501
 `make help` lists every task; [CONTRIBUTING.md](CONTRIBUTING.md) covers the workflow.
 
 Slack bot and Claude Desktop: [docs/slack-and-mcp.md](docs/slack-and-mcp.md).
+
+## Deploy
+
+Free, two ways ([docs/deployment.md](docs/deployment.md)):
+
+* **Render + Streamlit Community Cloud**: one free service runs the API, the Slack bot and the MCP
+  endpoint; ~20 minutes.
+* **One VM** (Oracle Cloud Always Free): the full stack with HTTPS, Prometheus, Grafana, Alertmanager
+  and Jaeger via `make prod`.
+
+A public deployment requires API keys (`API_KEYS`); analyses are rate limited per key.
 
 ## Test and evaluate
 

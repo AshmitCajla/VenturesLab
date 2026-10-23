@@ -13,6 +13,10 @@ features:
     display_name: VenturesLab
     always_online: true
   slash_commands:
+    - command: /ventureslab
+      description: Analyse a startup, ask the ops agent, or post the digest
+      usage_hint: "https://acme.com what it does | ops <question> | digest | help"
+      should_escape: false
     - command: /ventureslab-digest
       description: Post this week's VenturesLab digest
       should_escape: false

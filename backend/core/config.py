@@ -83,6 +83,9 @@ class Settings:
     # Prompt-injection defences (services/security.py). 0 only to measure attack success without them.
     injection_defenses: bool = field(default_factory=lambda: _env("INJECTION_DEFENSES", "1") == "1")
     cors_origins: str = field(default_factory=lambda: _env("CORS_ORIGINS", "*"))
+    # Public deployments: comma-separated API keys (empty = open, for local development)
+    api_keys: str = field(default_factory=lambda: _env("API_KEYS"))
+    rate_limit_runs_per_hour: int = field(default_factory=lambda: int(_env("RATE_LIMIT_RUNS_PER_HOUR", "20")))
 
     # Agent system
     planner_enabled: bool = field(default_factory=lambda: _env("PLANNER", "1") == "1")

@@ -5,7 +5,7 @@ VENV    ?= .venv
 BIN     = $(abspath $(VENV))/bin
 
 .DEFAULT_GOAL := help
-.PHONY: help install lint format test cov gate eval redteam chaos slack-check api ui up down dashboards clean
+.PHONY: help install lint format test cov gate eval redteam chaos slack-check api ui up down prod prod-logs backup dashboards clean
 
 help:  ## Show this help
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -53,6 +53,17 @@ up:  ## Full stack: API, UI, Prometheus, Alertmanager, Grafana, Jaeger
 
 down:  ## Stop the stack
 	docker compose down
+
+PROD := docker compose -f docker-compose.yml -f docker-compose.prod.yml
+
+prod:  ## Production on a VM: HTTPS via Caddy, only 80/443 exposed (see docs/deployment.md)
+	$(PROD) up -d --build
+
+prod-logs:  ## Follow production API logs
+	$(PROD) logs -f --tail=100 backend
+
+backup:  ## Back up the production SQLite database
+	./scripts/backup.sh
 
 dashboards:  ## Regenerate Grafana dashboards from code
 	$(PY) deploy/grafana/build_dashboards.py
