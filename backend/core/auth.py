@@ -24,8 +24,15 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.config import get_settings
 
-# /metrics stays open for Prometheus inside the private network; the Caddyfile blocks it publicly.
-PUBLIC_PATHS = {"/health", "/metrics", "/ops/alerts"}  # /ops/alerts checks its own webhook token
+# /ops/alerts checks its own webhook token. /metrics is open only with PUBLIC_METRICS=1 (the VM stack,
+# where Prometheus scrapes it inside the network and Caddy blocks it publicly).
+PUBLIC_PATHS = {"/health", "/ops/alerts"}
+
+
+def is_public(path: str) -> bool:
+    return path in PUBLIC_PATHS or (path == "/metrics" and get_settings().public_metrics)
+
+
 LIMITED = {("POST", "/analyze"): 1, ("POST", "ask"): 5}
 
 
@@ -79,7 +86,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
         caller = request.client.host if request.client else "unknown"
-        if _keys() and path not in PUBLIC_PATHS:
+        if _keys() and not is_public(path):
             key = presented_key(request)
             if not valid(key):
                 return JSONResponse(

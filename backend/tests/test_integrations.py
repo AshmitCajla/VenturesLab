@@ -301,6 +301,7 @@ def test_api_keys_and_rate_limits(fake_llm, settings):
     limiter.hits.clear()
     with TestClient(main.app) as c:
         assert c.get("/health").status_code == 200  # public
+        assert c.get("/metrics").status_code == 200  # open by default (VM stack, Caddy blocks it)
         assert c.get("/runs").status_code == 401
         assert c.get("/runs", headers={"X-API-Key": "wrong"}).status_code == 401
         assert c.get("/runs", headers={"Authorization": "Bearer k-two"}).status_code == 200
@@ -399,3 +400,14 @@ def test_restart_interruptions_are_classified():
     from ops.tools import classify
 
     assert classify("interrupted by a server restart") == "restart"
+
+
+def test_metrics_need_a_key_when_not_public(fake_llm, settings):
+    from fastapi.testclient import TestClient
+
+    import main
+
+    settings(API_KEYS="k-one", PUBLIC_METRICS="0")
+    with TestClient(main.app) as c:
+        assert c.get("/metrics").status_code == 401
+        assert c.get("/metrics", headers={"X-API-Key": "k-one"}).status_code == 200
