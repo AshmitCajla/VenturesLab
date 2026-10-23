@@ -205,6 +205,7 @@ SLASH_HELP = (
     "• `/ventureslab https://acme.com AI front desk for dental clinics`: analyse a website and/or description\n"
     "• `/ventureslab ops what failed in the last 6 hours?`: ask the ops agent\n"
     "• `/ventureslab digest`: this week's digest\n"
+    "• `/ventureslab channel`: this channel's ID, for SLACK_OPS_CHANNEL / SLACK_DIGEST_CHANNEL\n"
     "• Drop a PDF deck in any channel I'm in for a full deck analysis."
 )
 
@@ -216,6 +217,15 @@ async def on_slash(command: dict) -> str | None:
     channel, user = command.get("channel_id"), command.get("user_id")
     if not text or text.lower() in ("help", "?"):
         return SLASH_HELP
+    if text.lower() in ("channel", "whereami", "id"):
+        s = get_settings()
+        roles = [n for n, v in (("ops", s.slack_ops_channel), ("digest", s.slack_digest_channel)) if v == channel]
+        return (
+            f"This channel's ID is `{channel}`."
+            + (f" It is already the {' and '.join(roles)} channel." if roles else "")
+            + f"\nTo use it, add to backend/.env and restart the API:\n```SLACK_OPS_CHANNEL={channel}\n"
+            f"SLACK_DIGEST_CHANNEL={channel}```"
+        )
     if text.lower() == "digest":
         from services import digest
 
