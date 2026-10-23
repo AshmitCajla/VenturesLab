@@ -21,6 +21,7 @@ route except /health, /metrics and the webhook needs a key (core/auth.py).
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from contextlib import asynccontextmanager
 
@@ -64,8 +65,27 @@ async def lifespan(app: FastAPI):
 
     async with http_mount.running():  # VenturesLab MCP server at /mcp, behind the same API keys
         yield
+        await drain_runs(settings.shutdown_grace_s)
     for t in background:
         t.cancel()
+
+
+async def drain_runs(grace_s: float) -> None:
+    """On shutdown, let analyses in progress finish instead of killing them mid-run.
+
+    A restart used to cut runs off ("interrupted by a server restart"). New runs are not accepted
+    once shutdown starts (uvicorn stops serving), so this only waits for the ones already going.
+    """
+    from slack_app import handlers
+
+    pending = {t for t in (_tasks | handlers._tasks) if not t.done()}
+    if not pending:
+        return
+    log = logging.getLogger("api")
+    log.info("shutdown: waiting up to %.0fs for %d run(s) to finish", grace_s, len(pending))
+    _, still = await asyncio.wait(pending, timeout=grace_s)
+    if still:
+        log.warning("shutdown: %d run(s) did not finish in time; they will be marked interrupted", len(still))
 
 
 app = FastAPI(

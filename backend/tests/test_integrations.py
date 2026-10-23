@@ -373,3 +373,29 @@ async def test_slash_channel_reports_the_channel_id(slack):
 
     reply = await handlers.on_slash({"text": "channel", "channel_id": "C123", "user_id": "U1"})
     assert "`C123`" in reply and "SLACK_OPS_CHANNEL=C123" in reply
+
+
+async def test_shutdown_waits_for_runs_in_progress():
+    import asyncio
+
+    import main
+
+    finished = []
+
+    async def slow_run():
+        await asyncio.sleep(0.2)
+        finished.append(True)
+
+    task = asyncio.create_task(slow_run())
+    main._tasks.add(task)
+    try:
+        await main.drain_runs(grace_s=5)
+    finally:
+        main._tasks.discard(task)
+    assert finished == [True]
+
+
+def test_restart_interruptions_are_classified():
+    from ops.tools import classify
+
+    assert classify("interrupted by a server restart") == "restart"

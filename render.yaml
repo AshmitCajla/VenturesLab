@@ -7,6 +7,7 @@ services:
     rootDir: backend
     plan: free
     healthCheckPath: /health
+    maxShutdownDelaySeconds: 150   # let analyses in progress finish on deploys
     envVars:
       - key: GROQ_API_KEY
         sync: false
