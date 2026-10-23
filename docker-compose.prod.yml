@@ -1,0 +1,62 @@
+# Production overrides for a single VM:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Only Caddy is exposed (80/443, automatic HTTPS); every other service is reachable inside the network only.
+# Needs in .env next to this file: DOMAIN, ACME_EMAIL, GRAFANA_ADMIN_PASSWORD, ALERT_WEBHOOK_TOKEN,
+# and in backend/.env: API_KEYS (required in production) plus model keys and Slack tokens.
+services:
+  caddy:
+    image: caddy:2.10.2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on: [backend, frontend, grafana]
+
+  backend:
+    restart: unless-stopped
+    ports: !reset []
+    environment:
+      PUBLIC_API_URL: https://api.${DOMAIN}
+      PUBLIC_UI_URL: https://${DOMAIN}
+      ALERT_WEBHOOK_TOKEN: ${ALERT_WEBHOOK_TOKEN:?set ALERT_WEBHOOK_TOKEN}
+      LOG_JSON: "1"
+
+  frontend:
+    restart: unless-stopped
+    ports: !reset []
+    environment:
+      GRAFANA_URL: https://grafana.${DOMAIN}
+      API_KEY: ${UI_API_KEY:?set UI_API_KEY to one of backend API_KEYS}
+
+  prometheus:
+    restart: unless-stopped
+    ports: !reset []
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=30d"]
+    volumes:
+      - prometheus-data:/prometheus
+
+  alertmanager:
+    restart: unless-stopped
+    ports: !reset []
+
+  grafana:
+    restart: unless-stopped
+    ports: !reset []
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}
+      GF_SERVER_ROOT_URL: https://grafana.${DOMAIN}
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+  jaeger:
+    restart: unless-stopped
+    ports: !reset []
+
+volumes:
+  caddy-data:
+  prometheus-data:
+  grafana-data:

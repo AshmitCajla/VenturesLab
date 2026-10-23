@@ -289,3 +289,80 @@ async def test_slack_check_explains_a_missing_token(capsys):
         await check(post=False)
     assert exit_info.value.code == 1
     assert "SLACK_BOT_TOKEN" in capsys.readouterr().out
+
+
+def test_api_keys_and_rate_limits(fake_llm, settings):
+    from fastapi.testclient import TestClient
+
+    import main
+    from core.auth import limiter
+
+    settings(API_KEYS="k-one,k-two", RATE_LIMIT_RUNS_PER_HOUR="2")
+    limiter.hits.clear()
+    with TestClient(main.app) as c:
+        assert c.get("/health").status_code == 200  # public
+        assert c.get("/runs").status_code == 401
+        assert c.get("/runs", headers={"X-API-Key": "wrong"}).status_code == 401
+        assert c.get("/runs", headers={"Authorization": "Bearer k-two"}).status_code == 200
+        h = {"X-API-Key": "k-one"}
+        ids = [c.post("/analyze", data={"idea": "x"}, headers=h).json()["run_id"] for _ in range(2)]
+        blocked = c.post("/analyze", data={"idea": "x"}, headers=h)
+        assert blocked.status_code == 429 and int(blocked.headers["Retry-After"]) > 0
+        assert c.post("/analyze", data={"idea": "x"}, headers={"X-API-Key": "k-two"}).status_code == 202
+        deadline = time.time() + 20
+        while (run := c.get(f"/runs/{ids[0]}", headers=h).json())["status"] not in ("done", "failed"):
+            assert time.time() < deadline
+            time.sleep(0.05)
+    assert run["status"] == "done"
+    limiter.hits.clear()
+
+
+def test_mcp_is_served_inside_the_api_behind_api_keys(fake_llm, settings):
+    from fastapi.testclient import TestClient
+
+    import main
+
+    settings(API_KEYS="k-one")
+    init = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "1"}},
+    }
+    accept = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json"}
+    with TestClient(main.app) as c:
+        assert c.post("/mcp", json=init, headers=accept).status_code == 401
+        r = c.post("/mcp", json=init, headers={**accept, "X-API-Key": "k-one"})
+        assert r.status_code == 200 and "ventureslab" in r.text
+        assert c.get("/runs", headers={"X-API-Key": "k-one"}).status_code == 200  # API routes unaffected
+
+
+async def test_mcp_proxy_mode_forwards_to_a_deployed_api(fake_llm, monkeypatch):
+    import httpx
+
+    import main
+    from mcp_servers import ventureslab_server as vs
+
+    transport = httpx.ASGITransport(app=main.app)
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(vs.httpx, "AsyncClient", lambda **kw: real_client(transport=transport, **kw))
+    monkeypatch.setenv("VENTURESLAB_API_URL", "http://deployed")
+    monkeypatch.setattr(vs, "POLL_S", 0.05)
+    out = await vs.analyze_deck(description="Clinic scheduling on WhatsApp")
+    assert out["status"] == "done" and "ClinicFlow: BUILD" in out["report_markdown"]
+    assert (await runs.get(out["run_id"])).source == "api"  # it went through the HTTP API
+
+
+async def test_slash_command_starts_a_threaded_analysis(fake_llm, slack, monkeypatch):
+    from slack_app import handlers
+
+    monkeypatch.setattr(handlers, "UPDATE_EVERY_S", 0)
+    assert "ventureslab" in (await handlers.on_slash({"text": "help"})).lower()
+    reply = await handlers.on_slash({"text": "https://acme.com clinic scheduling", "channel_id": "C9", "user_id": "U1"})
+    await _drain()
+    assert reply is None
+    parent, progress = slack.posts[0], slack.posts[1]
+    assert "asked for an analysis" in parent["text"] and progress["thread_ts"]
+    assert slack.posts[-1]["text"].startswith("ClinicFlow: BUILD")
+    run = (await runs.list())[0]
+    assert run.input["url"] == "https://acme.com" and run.input["idea"] == "clinic scheduling"

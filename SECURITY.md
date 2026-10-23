@@ -16,5 +16,7 @@ webhook, leakage of API keys or Slack tokens, and anything that lets one Slack u
 
 * Decks, websites, search results and Slack messages are untrusted input; see `services/security.py`
   and `docs/design-decisions.md`.
+* A public deployment requires `API_KEYS`; analyses and follow-up questions are rate limited per key
+  (`core/auth.py`). `/metrics` is blocked at the reverse proxy.
 * Secrets come only from environment variables; tests blank them so a developer's `.env` cannot leak in.
 * Fault injection (`/chaos`) is disabled unless `CHAOS=1`; never enable it in production.

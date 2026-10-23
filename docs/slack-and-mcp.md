@@ -27,6 +27,7 @@ Tokens live only in `backend/.env`, which git ignores. Rotate them under *OAuth 
 |---|---|
 | Drop a PDF deck in a channel | A thread with one progress message edited live, then a summary card (score, verdict, red flags, claim conflicts, buttons) |
 | `@VenturesLab https://acme.com fintech for dentists` | The same, from a website and description |
+| `/ventureslab https://acme.com fintech for dentists` | The same from anywhere, in a new thread; `/ventureslab ops …` asks the ops agent; `/ventureslab help` |
 | Reply in the run's thread | An answer from that run's data and slides |
 | 👍 / 👎 / ✏️ Correct a section | Feedback stored; corrections become evaluation cases |
 | 🔄 Re-run | The deck is fetched again from Slack and re-analysed (the diff shows what changed) |
@@ -67,3 +68,7 @@ Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json
 Then, in Claude Desktop: "Analyse ~/Downloads/deck.pdf with VenturesLab and compare it with the last deck from
 the same company", or "Using ventureslab-ops, what failed in the last 6 hours?". The servers share the
 API's database (`DB_PATH`), so runs show up everywhere.
+
+Against a deployed API instead of a local one, add `"env": {"VENTURESLAB_API_URL": "…", "VENTURESLAB_API_KEY": "…"}`
+to the `ventureslab` entry, or connect a remote-capable client to `https://<api>/mcp`; see
+[deployment.md](deployment.md#connecting-mcp-clients-to-a-deployment).

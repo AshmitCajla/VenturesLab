@@ -200,6 +200,43 @@ async def on_mention(event: dict) -> None:
     await start_run(channel=channel, thread_ts=thread_ts or ts, user=event.get("user"), idea=idea, url=url)
 
 
+SLASH_HELP = (
+    "*VenturesLab*\n"
+    "• `/ventureslab https://acme.com AI front desk for dental clinics`: analyse a website and/or description\n"
+    "• `/ventureslab ops what failed in the last 6 hours?`: ask the ops agent\n"
+    "• `/ventureslab digest`: this week's digest\n"
+    "• Drop a PDF deck in any channel I'm in for a full deck analysis."
+)
+
+
+async def on_slash(command: dict) -> str | None:
+    """`/ventureslab …`. Returns an ephemeral reply for the caller, or None when the answer is posted
+    in the channel (an analysis thread, so the whole team sees it)."""
+    text = (command.get("text") or "").strip()
+    channel, user = command.get("channel_id"), command.get("user_id")
+    if not text or text.lower() in ("help", "?"):
+        return SLASH_HELP
+    if text.lower() == "digest":
+        from services import digest
+
+        title, blks = await digest.build()
+        await slack_client.post(channel, title, blks)
+        return None
+    if text.lower().startswith("ops "):
+        from ops.agent import ask_ops
+
+        ans = await ask_ops(text[4:].strip())
+        return ans.answer
+    m = URL_RE.search(text)
+    url = m.group(1) if m else ""
+    idea = URL_RE.sub("", text).strip()
+    parent = await slack_client.post(channel, f"<@{user}> asked for an analysis: {text[:300]}")
+    if not parent:
+        return "I couldn't post in this channel. Invite me first: `/invite @VenturesLab`."
+    await start_run(channel=channel, thread_ts=parent, user=user, idea=idea, url=url)
+    return None
+
+
 async def on_action(body: dict) -> None:
     action = body["actions"][0]
     aid, run_id = action["action_id"], action.get("value")

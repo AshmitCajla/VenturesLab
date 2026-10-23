@@ -1,4 +1,5 @@
-# One-click backend deploy on Render: New > Blueprint > pick this repo.
+# Free path: Render → New → Blueprint → this repo. Serves the API, the Slack bot (Socket Mode)
+# and the MCP endpoint (/mcp) from one free web service. See docs/deployment.md.
 services:
   - type: web
     name: ventureslab-api
@@ -11,5 +12,21 @@ services:
         sync: false
       - key: OPENROUTER_API_KEY
         sync: false
-      - key: MAX_CONCURRENT_JOBS
-        value: "2"
+      - key: API_KEYS                  # required: the API is public
+        sync: false
+      - key: SLACK_BOT_TOKEN
+        sync: false
+      - key: SLACK_APP_TOKEN
+        sync: false
+      - key: SLACK_OPS_CHANNEL
+        sync: false
+      - key: SLACK_DIGEST_CHANNEL
+        sync: false
+      - key: PUBLIC_UI_URL             # the Streamlit Community Cloud URL
+        sync: false
+      - key: PUBLIC_API_URL            # https://<service>.onrender.com (allows MCP Host headers)
+        sync: false
+      - key: MAX_CONCURRENT_JOBS       # 512 MB RAM on the free plan
+        value: "1"
+      - key: LOG_JSON
+        value: "1"
