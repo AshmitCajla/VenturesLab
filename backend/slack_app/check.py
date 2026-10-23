@@ -55,7 +55,7 @@ async def check(post: bool) -> None:
 
     app = AsyncWebClient(token=s.slack_app_token)
     try:
-        await app.apps_connections_open()
+        await app.apps_connections_open(app_token=s.slack_app_token)
     except SlackApiError as exc:
         _fail(
             f"Socket Mode connection refused: {exc.response['error']}",
