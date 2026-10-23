@@ -10,7 +10,7 @@ to the slides and URLs it used and says how much evidence it rests on. Hidden te
 aimed at the AI are stripped before anything reads the deck.
 
 [![CI](https://github.com/AshmitCajla/VenturesLab/actions/workflows/ci.yml/badge.svg)](https://github.com/AshmitCajla/VenturesLab/actions/workflows/ci.yml)
-**Live demo (v2 UI):** [ventureslab-ashmit-cajla.streamlit.app](https://ventureslab-ashmit-cajla.streamlit.app/)
+**Live demo:** [ventureslab-ashmit-cajla.streamlit.app](https://ventureslab-ashmit-cajla.streamlit.app/) (backend on Render with the Slack bot and MCP endpoint)
 
 > Live example (gpt-oss on Groq): a deck claiming *"The dental practice software market is a $50B
 > opportunity"* was flagged **conflict**: four independent market reports put it at **$2.8-4.4B**.
