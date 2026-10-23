@@ -53,8 +53,10 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
    ```
    Then drop a deck in Slack.
 
-Limits on this path: 512 MB RAM (keep `MAX_CONCURRENT_JOBS=1`), runs are lost when the service
-redeploys or restarts, and there is no Prometheus/Grafana (the ops agent still works from the
+Limits on this path: 512 MB RAM. A 20-slide run peaks at ~455 MB with the ONNX embedder and ~310 MB
+with the built-in hashing embedder, so `render.yaml` sets `EMBEDDINGS=hash` and `MAX_CONCURRENT_JOBS=1`
+(retrieval matches words rather than meaning, which is adequate for short decks; the VM path keeps the
+ONNX embedder). Runs are lost when the service redeploys or restarts, and there is no Prometheus/Grafana (the ops agent still works from the
 database and logs). Set `SUPABASE_URL`/`SUPABASE_KEY` to keep a copy of finished analyses.
 
 ---

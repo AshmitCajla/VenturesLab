@@ -27,7 +27,11 @@ services:
         sync: false
       - key: PUBLIC_API_URL            # https://<service>.onrender.com (allows MCP Host headers)
         sync: false
-      - key: MAX_CONCURRENT_JOBS       # 512 MB RAM on the free plan
+      # 512 MB RAM on the free plan: a 20-slide run peaks at ~455 MB with the ONNX embedder and
+      # ~310 MB with the hashing one, so the free plan uses hashing and one analysis at a time.
+      - key: MAX_CONCURRENT_JOBS
         value: "1"
+      - key: EMBEDDINGS
+        value: hash
       - key: LOG_JSON
         value: "1"
