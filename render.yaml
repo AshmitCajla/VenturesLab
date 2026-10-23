@@ -35,5 +35,3 @@ services:
         value: hash
       - key: LOG_JSON
         value: "1"
-      - key: PUBLIC_METRICS            # the service itself is public; /metrics needs a key here
-        value: "0"

@@ -13,6 +13,7 @@ services:
     stop_grace_period: 150s  # let analyses in progress finish (SHUTDOWN_GRACE_S=120)
     environment:
       PORT: 8000
+      PUBLIC_METRICS: "1"  # Prometheus scrapes inside this network; Caddy blocks /metrics publicly
       DB_PATH: /app/data/ventureslab.db
       LOG_DIR: /app/data/logs
       RUNBOOK_DIR: /docs/runbooks
