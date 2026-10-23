@@ -366,3 +366,10 @@ async def test_slash_command_starts_a_threaded_analysis(fake_llm, slack, monkeyp
     assert slack.posts[-1]["text"].startswith("ClinicFlow: BUILD")
     run = (await runs.list())[0]
     assert run.input["url"] == "https://acme.com" and run.input["idea"] == "clinic scheduling"
+
+
+async def test_slash_channel_reports_the_channel_id(slack):
+    from slack_app import handlers
+
+    reply = await handlers.on_slash({"text": "channel", "channel_id": "C123", "user_id": "U1"})
+    assert "`C123`" in reply and "SLACK_OPS_CHANNEL=C123" in reply
