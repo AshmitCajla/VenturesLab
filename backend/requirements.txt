@@ -14,9 +14,9 @@ fastembed>=0.5
 numpy>=1.26
 # observability
 prometheus-client>=0.21
-opentelemetry-api>=1.30
-opentelemetry-sdk>=1.30
-opentelemetry-exporter-otlp-proto-http>=1.30
+opentelemetry-api>=1.45.1
+opentelemetry-sdk>=1.45.1
+opentelemetry-exporter-otlp-proto-http>=1.45.1
 # MCP servers (VenturesLab, research tools, ops tools)
 mcp>=2.3,<3
 # Slack bot (Socket Mode)
